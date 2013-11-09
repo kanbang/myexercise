@@ -1,0 +1,316 @@
+#include "StdAfx.h"
+#include "resource.h"
+
+#include "../MineGE/HelperClass.h"
+
+#include "DrawCmd.h"
+
+// 定义注册服务名称
+#ifndef DRAW_VENT_CMD_SERVICE_NAME
+#define DRAW_VENT_CMD_SERVICE_NAME _T("DRAWVENTCMD_SERVICE_NAME")
+#endif
+
+class CDrawVentCmdApp : public AcRxArxApp
+{
+
+public:
+    CDrawVentCmdApp () : AcRxArxApp () {}
+
+    virtual AcRx::AppRetCode On_kInitAppMsg ( void* pkt )
+    {
+
+        AcRx::AppRetCode retCode = AcRxArxApp::On_kInitAppMsg ( pkt ) ;
+
+        // 注册服务
+        acrxRegisterService( DRAW_VENT_CMD_SERVICE_NAME );
+
+        acutPrintf( _T( "\nDrawVentCmd::On_kLoadAppMsg\n" ) );
+
+        return ( retCode ) ;
+    }
+
+    virtual AcRx::AppRetCode On_kUnloadAppMsg ( void* pkt )
+    {
+
+        AcRx::AppRetCode retCode = AcRxArxApp::On_kUnloadAppMsg ( pkt ) ;
+
+        // 删除服务
+        delete acrxServiceDictionary->remove( DRAW_VENT_CMD_SERVICE_NAME );
+
+        acutPrintf( _T( "\nDrawVentCmd::On_kUnloadAppMsg\n" ) );
+
+        return ( retCode ) ;
+    }
+
+    virtual AcRx::AppRetCode On_kLoadDwgMsg( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxDbxApp::On_kLoadDwgMsg ( pkt ) ;
+
+        acutPrintf( _T( "\nDrawVentCmd::On_kLoadDwgMsg\n" ) );
+
+        return retCode;
+    }
+
+    virtual AcRx::AppRetCode On_kUnloadDwgMsg( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxDbxApp::On_kUnloadDwgMsg ( pkt ) ;
+
+        acutPrintf( _T( "\nDrawVentCmd::On_kUnloadDwgMsg\n" ) );
+
+        return retCode;
+    }
+
+    virtual void RegisterServerComponents ()
+    {
+    }
+
+    // 绘制节点
+    //static void JL_DrawJoint(void)
+    //{
+    //	if(IsGETypeHasDrawJig_Helper(Joint))
+    //	{
+    //		DrawCmd::DrawJointByJig();   // 通过jig绘制节点
+    //	}
+    //	else
+    //	{
+    //		DrawCmd::DrawJoint();        // 使用普通命令行交互绘制节点
+    //	}
+    //}
+
+    // 绘制巷道
+    static void JL_DrawTunnel( void )
+    {
+        DrawCmd::DrawTunnel();        // 使用普通命令行交互绘制巷道
+    }
+
+    // 绘制弧线巷道
+    static void JL_DrawArcTunnel( void )
+    {
+        DrawCmd::DrawArcTunnel();        // 使用普通命令行交互绘制巷道
+    }
+
+    // 绘制工作面
+    static void JL_DrawWorkSurface()
+    {
+        DrawCmd::DrawWS();       // 使用普通命令行交互绘制工作面
+    }
+
+    // 绘制掘进工作面
+    static void JL_DrawTTunnel()
+    {
+        DrawCmd::DrawTTunnel();  // 绘制掘进工作面
+    }
+
+    static void JL_ResetInTunnel()
+    {
+        DrawCmd::ResetInTunnel();  // 重新设置掘进工作面的导风巷道
+    }
+
+    static void JL_ShowInTunnel()
+    {
+        DrawCmd::ShowInTunnel();  // 高亮显示掘进工作面的导风巷道
+    }
+
+    // 绘制风流方向
+    static void JL_DrawDirection()
+    {
+        DrawCmd::DrawDirection();       // 使用普通命令行交互绘制风流方向
+    }
+
+    // 绘制主要通风机
+    static void JL_DrawMainFan()
+    {
+        DrawCmd::DrawMainFan();       // 使用普通命令行交互绘制风机
+    }
+
+    // 绘制局部扇风机
+    static void JL_DrawLocalFan()
+    {
+        DrawCmd::DrawLocalFan();       // 使用普通命令行交互绘制风机
+    }
+
+    // 绘制永久风门
+    static void JL_DrawPermanentGate()
+    {
+        DrawCmd::DrawGate( 1 );
+    }
+
+    // 绘制临时风门
+    static void JL_DrawTemporaryGate()
+    {
+        DrawCmd::DrawGate( 2 );
+    }
+
+    // 绘制双向风门
+    static void JL_DrawDoubleGate()
+    {
+        DrawCmd::DrawGate( 3 );
+    }
+
+    // 绘制平衡风门
+    static void JL_DrawBalanceGate()
+    {
+        DrawCmd::DrawGate( 4 );
+    }
+
+    // 绘制永久挡风墙
+    static void JL_DrawPermanentWall()
+    {
+        DrawCmd::DrawWall( 1 );
+    }
+
+    // 绘制临时挡风墙
+    static void JL_DrawTemporaryWall()
+    {
+        DrawCmd::DrawWall( 2 );
+    }
+
+    // 绘制墙调节风窗
+    static void JL_DrawWallCasement()
+    {
+        DrawCmd::DrawCasement( 1 );
+    }
+
+    // 绘制永久调节风窗
+    static void JL_DrawPermanentCasement()
+    {
+        DrawCmd::DrawCasement( 2 );
+    }
+
+    // 绘制临时挡风墙
+    static void JL_DrawTemporaryCasement()
+    {
+        DrawCmd::DrawCasement( 3 );
+    }
+
+    // 绘制测风站
+    static void JL_DrawWindStation()
+    {
+        DrawCmd::DrawWindStation();
+    }
+
+    // 绘制火药爆炸材料库
+    static void JL_DrawPowderStorage()
+    {
+        DrawCmd::DrawStorage( 1 );     // 使用普通命令行交互绘制火药库
+    }
+
+    // 绘制机电硐室
+    static void JL_DrawMachineRoom()
+    {
+        DrawCmd::DrawStorage( 2 );     // 使用普通命令行交互绘制机电硐室
+    }
+
+    // 绘制井下充电室
+    static void JL_DrawChargeRoom()
+    {
+        DrawCmd::DrawStorage( 3 );     // 使用普通命令行交互绘制充电室
+    }
+
+    // 绘制指北针
+    //static void JL_DrawCompass()
+    //{
+//		DrawCmd::DrawCompass();
+    //}
+
+    static void JL_DrawChimney()
+    {
+        DrawCmd::DrawChimney();
+    }
+
+    // 绘制风桥
+    static void JL_DrawWindBridge()
+    {
+        DrawCmd::DrawWindBridge();
+    }
+
+    static void JL_AutoDraw( void )
+    {
+        DrawCmd::AutoDraw();
+    }
+
+    static void JL_UpdateAllWindStationData( void )
+    {
+        DrawCmd::UpdateAllWindStationData();
+    }
+
+    static void JL_AutoDirection( void )
+    {
+        DrawCmd::AutoDirection();
+    }
+
+    static void JL_TunnelJunctionEnclose()
+    {
+        DrawCmd::JunctionEnclose();
+    }
+
+    static void JL_ReverseDirection( void )
+    {
+        DrawCmd::ReverseDirection();
+    }
+
+    static void JL_ReBindTagGE( void )
+    {
+        DrawCmd::ReBindEdge();
+    }
+
+    static void JL_SplitTunnel( void )
+    {
+        DrawCmd::SplitTunnel();
+    }
+
+    static void JL_ChangeData( void )
+    {
+        DrawCmd::ChangeData();
+    }
+} ;
+
+
+IMPLEMENT_ARX_ENTRYPOINT( CDrawVentCmdApp )
+
+//ACED_ARXCOMMAND_ENTRY_AUTO(CDrawVentCmdApp, JL, _DrawJoint, DrawJoint, ACRX_CMD_TRANSPARENT, NULL)
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawTunnel, DrawTunnel, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawArcTunnel, DrawArcTunnel, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawWorkSurface, DrawWorkSurface, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawTTunnel, DrawTTunnel, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _ResetInTunnel, ResetInTunnel, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _ShowInTunnel, ShowInTunnel, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawMainFan, DrawMainFan, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawLocalFan, DrawLocalFan, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawPermanentGate, DrawPermanentGate, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawTemporaryGate, DrawTemporaryGate, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawDoubleGate, DrawDoubleGate, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawBalanceGate, DrawBalanceGate, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawPermanentWall, DrawPermanentWall, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawTemporaryWall, DrawTemporaryWall, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawWallCasement, DrawWallCasement, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawPermanentCasement, DrawPermanentCasement, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawTemporaryCasement, DrawTemporaryCasement, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawWindBridge, DrawWindBridge, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawWindStation, DrawWindStation, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawDirection, DrawDirection, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawPowderStorage, DrawPowderStorage, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawMachineRoom, DrawMachineRoom, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawChargeRoom, DrawChargeRoom, ACRX_CMD_TRANSPARENT, NULL )
+
+//ACED_ARXCOMMAND_ENTRY_AUTO(CDrawVentCmdApp, JL, _DrawCompass, DrawCompass, ACRX_CMD_TRANSPARENT, NULL)
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _DrawChimney, DrawChimney, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _AutoDraw, AutoDraw, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _UpdateAllWindStationData, UpdateAllWindStationData, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _AutoDirection, AutoDirection, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _TunnelJunctionEnclose, TunnelJunctionEnclose, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _ReverseDirection, ReverseDirection, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _ReBindTagGE, ReBindTagGE, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _SplitTunnel, SplitTunnel, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CDrawVentCmdApp, JL, _ChangeData, ChangeData, ACRX_CMD_TRANSPARENT, NULL )

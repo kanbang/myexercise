@@ -1,0 +1,4 @@
+VNG_Edge	名称
+VNG_Edge	风量
+VNG_Edge	风速
+VNG_Edge	风阻

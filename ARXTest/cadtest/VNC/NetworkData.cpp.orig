@@ -1,0 +1,80 @@
+#include "NetworkData.h"
+
+#include <cmath>
+#include <vector>
+typedef std::vector<double> DoubleArray;
+
+static void GetDoubleArray(const VNC_FanData* pFanData, DoubleArray& a)
+{
+	a.push_back(pFanData->a0);
+	a.push_back(pFanData->a1);
+	a.push_back(pFanData->a2);
+	a.push_back(pFanData->a3);
+	a.push_back(pFanData->a4);
+	a.push_back(pFanData->a5);
+}
+
+// m的倒n阶，及n(n-1)(n-2)...(n-m+1)
+static int factorial(int m, int n)
+{
+	if(n>m) return 0;
+
+	int k = m, c = 1;
+	for(int j=0;j<n;j++)
+	{
+		c *= k; k--;
+	}
+	return c;
+}
+
+// 计算多项式的导数
+// 多项式f = a0 + a1*q + a2*q^2 + a3*q^3 + a4*q^4 + a5*q^5
+// a  - 多项式的系数
+// n  - 几阶导数
+// q  - 输入的风量
+static double CaclPolyomial(const DoubleArray& a, int n, double q)
+{
+	double s = 0, t = 1;
+
+	int len = a.size();
+	for(int i=n;i<len;i++)
+	{
+		s += factorial(i, n)*a[i]*t;
+		t *= q;
+	}
+	return s;
+}
+
+VNC_FanData::VNC_FanData() : a0(0),a1(0),a2(0),a3(0),a4(0),a5(0)
+{
+
+}
+
+double VNC_FanData::h0( double q ) const
+{
+	DoubleArray a;
+	GetDoubleArray(this, a);
+	return CaclPolyomial(a, 0, q);
+}
+
+double VNC_FanData::h1( double q ) const
+{
+	DoubleArray a;
+	GetDoubleArray(this, a);
+	return CaclPolyomial(a, 1, q);
+}
+
+VNC_EdgeData::VNC_EdgeData() : r(0), q(0), ar(0), fq(0)
+{
+
+}
+
+double VNC_EdgeData::f0() const
+{
+	return r*q*fabs(q);
+}
+
+double VNC_EdgeData::f1() const
+{
+	return fabs(2*r*q); // >=0
+}

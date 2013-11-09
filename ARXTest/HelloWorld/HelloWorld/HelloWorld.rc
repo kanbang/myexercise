@@ -1,0 +1,291 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// 中文(中华人民共和国) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CHS)
+#ifdef _WIN32
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+#pragma code_page(936)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,1
+ PRODUCTVERSION 1,0,0,1
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "HelloWorld ObjectARX application"
+            VALUE "FileVersion", "1, 0, 0, 1"
+            VALUE "InternalName", "HelloWorld"
+            VALUE "LegalCopyright", "Copyright ?2002"
+            VALUE "OriginalFilename", "HelloWorld.arx"
+            VALUE "ProductName", "HelloWorld Application"
+            VALUE "ProductVersion", "1, 0, 0, 1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_TESTDLG DIALOGEX 0, 0, 186, 95
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "ObjectARX Dialog"
+FONT 8, "Tahoma", 0, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,23,72,50,16
+    PUSHBUTTON      "Cancel",IDCANCEL,114,72,50,16
+    PUSHBUTTON      "Button1",IDC_BUTTON1,53,20,73,25
+END
+
+IDD_DIALOG1 DIALOGEX 0, 0, 251, 242
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "通风网络风流分配仿真对话框"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "初始精度",IDC_STATIC,7,7,237,58
+    EDITTEXT        IDC_EDIT1,64,22,53,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_EDIT2,180,21,53,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_EDIT3,64,46,53,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_EDIT4,180,47,53,14,ES_AUTOHSCROLL
+    LTEXT           "风量迭代精度",IDC_STATIC,7,24,49,8
+    LTEXT           "阻力迭代精度",IDC_STATIC,7,49,49,8
+    LTEXT           "排序次数",IDC_STATIC,140,49,33,8
+    LTEXT           "迭代次数",IDC_STATIC,140,24,33,8
+    GROUPBOX        "自然风压",IDC_STATIC,7,71,236,49
+    CONTROL         "春季",IDC_RADIO1,"Button",BS_AUTORADIOBUTTON,13,85,32,10
+    CONTROL         "夏季",IDC_RADIO2,"Button",BS_AUTORADIOBUTTON,63,85,32,10
+    CONTROL         "秋季",IDC_RADIO3,"Button",BS_AUTORADIOBUTTON,113,85,32,10
+    CONTROL         "冬季",IDC_RADIO4,"Button",BS_AUTORADIOBUTTON,163,85,32,10
+    CONTROL         "拆分风机仅靠自然风压通风",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,105,112,10
+    CONTROL         "不考虑自然风压的影响",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,138,105,96,10
+    GROUPBOX        "其它设置",IDC_STATIC,7,128,236,33
+    CONTROL         "反风",IDC_CHECK3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,144,32,10
+    DEFPUSHBUTTON   "开始",IDC_BUTTON1,49,167,50,14
+    PUSHBUTTON      "取消",IDC_BUTTON2,155,167,50,14
+    GROUPBOX        "程序进度",IDC_STATIC,7,185,236,50
+    LTEXT           "当前进程：斯考德-恒斯雷迭代计算",IDC_STATIC,11,196,124,8
+    LTEXT           "总进度：完成总运算量的50%",IDC_STATIC,11,222,104,8
+    CONTROL         "",IDC_PROGRESS1,"msctls_progress32",WS_BORDER,12,207,230,13
+END
+
+IDD_DIALOG2 DIALOGEX 0, 0, 210, 172
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "角联结构对话框"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "开始",IDOK,21,145,56,20
+    PUSHBUTTON      "取消",IDCANCEL,132,145,56,20
+    GROUPBOX        "初始化设置",IDC_STATIC,7,4,195,81
+    LTEXT           "通路长度",IDC_STATIC,11,17,33,8
+    LTEXT           "图示间隔时间",IDC_STATIC,11,43,49,8
+    EDITTEXT        IDC_EDIT1,66,14,40,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_EDIT2,66,40,40,14,ES_AUTOHSCROLL
+    CONTROL         "采用复合分支简化",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,119,16,80,10
+    CONTROL         "不图示角联结构",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,119,42,72,10
+    PUSHBUTTON      "导出角联结构",IDC_BUTTON1,11,61,94,18
+    GROUPBOX        "程序进程",IDC_STATIC,6,88,197,50
+    LTEXT           "当前进程：计算网络角联结构",IDC_STATIC,9,100,105,8
+    LTEXT           "总进度：完成总运算量的100%",IDC_STATIC,9,127,108,8
+    CONTROL         "",IDC_PROGRESS1,"msctls_progress32",WS_BORDER,7,111,195,14
+END
+
+IDD_DIALOG3 DIALOGEX 0, 0, 541, 250
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "网络分风仿真结果"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_LIST1,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,527,236
+END
+
+IDD_DIALOG4 DIALOGEX 0, 0, 418, 258
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "风机特性曲线"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    COMBOBOX        IDC_COMBO1,7,7,93,77,CBS_DROPDOWN | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_COMBO2,102,7,57,64,CBS_DROPDOWN | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "打印",IDC_BUTTON1,161,7,50,14
+    GROUPBOX        "Hf=a0+a1*x+a2*x^2+a3*x^3+a4*x^4+a5*x^5方程",IDC_STATIC,215,7,196,87
+    LTEXT           "a0",IDC_STATIC,222,22,9,8
+    EDITTEXT        IDC_EDIT1,238,19,61,14,ES_AUTOHSCROLL
+    LTEXT           "a1",IDC_STATIC,314,21,9,8
+    EDITTEXT        IDC_EDIT2,330,18,61,14,ES_AUTOHSCROLL
+    LTEXT           "a2",IDC_STATIC,222,51,9,8
+    EDITTEXT        IDC_EDIT5,238,48,61,14,ES_AUTOHSCROLL
+    LTEXT           "a3",IDC_STATIC,314,50,9,8
+    EDITTEXT        IDC_EDIT6,330,47,61,14,ES_AUTOHSCROLL
+    LTEXT           "a4",IDC_STATIC,222,80,9,8
+    EDITTEXT        IDC_EDIT7,238,77,61,14,ES_AUTOHSCROLL
+    LTEXT           "a5",IDC_STATIC,314,79,9,8
+    EDITTEXT        IDC_EDIT8,330,76,61,14,ES_AUTOHSCROLL
+    GROUPBOX        "实测数据输入",IDC_STATIC,215,99,196,48
+    LTEXT           "Q0",IDC_STATIC,222,113,10,8
+    EDITTEXT        IDC_EDIT9,238,110,61,14,ES_AUTOHSCROLL
+    LTEXT           "H0",IDC_STATIC,222,132,10,8
+    EDITTEXT        IDC_EDIT10,238,129,61,14,ES_AUTOHSCROLL
+    CONTROL         "鼠标输入",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,329,111,48,10
+    PUSHBUTTON      "输入",IDC_BUTTON2,329,128,50,14
+    GROUPBOX        "点击图形显示数据",IDC_STATIC,215,155,196,34
+    LTEXT           "Q",IDC_STATIC,222,172,8,8
+    EDITTEXT        IDC_EDIT11,238,169,61,14,ES_AUTOHSCROLL
+    LTEXT           "H",IDC_STATIC,314,171,8,8
+    EDITTEXT        IDC_EDIT12,330,168,61,14,ES_AUTOHSCROLL
+    GROUPBOX        "漏风风阻R与高效区段风量Qv",IDC_STATIC,215,197,196,33
+    LTEXT           "R",IDC_STATIC,222,214,8,8
+    EDITTEXT        IDC_EDIT13,238,211,61,14,ES_AUTOHSCROLL
+    LTEXT           "Qv",IDC_STATIC,314,212,11,8
+    EDITTEXT        IDC_EDIT14,330,209,61,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "绘图",IDC_BUTTON3,217,233,39,18
+    PUSHBUTTON      "回归方程",IDC_BUTTON4,268,233,39,18
+    PUSHBUTTON      "清空",IDC_BUTTON5,319,233,39,18
+    PUSHBUTTON      "确定 ",IDC_BUTTON6,370,233,39,18
+    CONTROL         "",IDC_CHARTCTRL,"ChartCtrl",WS_TABSTOP,5,22,209,229
+END
+
+IDD_DIALOG5 DIALOGEX 0, 0, 492, 229
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "关于JLMVSS"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_TITLE1,"Static",SS_BLACKFRAME | NOT WS_VISIBLE,7,34,478,55
+    CONTROL         "",IDC_TITLE2,"Static",SS_BLACKFRAME | NOT WS_VISIBLE,89,90,313,73
+    CONTROL         "",IDC_TITLE3,"Static",SS_BLACKFRAME | NOT WS_VISIBLE,124,163,239,25
+    CONTROL         "",IDC_TITLE4,"Static",SS_BLACKFRAME | NOT WS_VISIBLE,7,189,478,33
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_TESTDLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 179
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 88
+    END
+
+    IDD_DIALOG1, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 244
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 235
+    END
+
+    IDD_DIALOG2, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 203
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 165
+    END
+
+    IDD_DIALOG3, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 534
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 243
+    END
+
+    IDD_DIALOG4, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 411
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 251
+    END
+
+    IDD_DIALOG5, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 485
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 222
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_PROJNAME            "HelloWorld"
+END
+
+#endif    // 中文(中华人民共和国) resources
+/////////////////////////////////////////////////////////////////////////////
+
+

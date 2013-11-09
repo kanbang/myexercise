@@ -1,0 +1,67 @@
+#include "stdafx.h"
+#include "PropertyDataDlg.h"
+
+#define bool2BOOL(b) (b?1:0)
+
+static void SetAndAddToPropertyList(CMFCPropertyGridCtrl* pPropList, CMFCPropertyGridProperty* pProp, bool bEnable, bool bEditable, bool isBoolType)
+{
+	pProp->Enable(bool2BOOL(bEnable));
+	if(!isBoolType) pProp->AllowEdit(bool2BOOL(bEditable));
+	pPropList->AddProperty(pProp);
+}
+
+static void AddStringProperty( CMFCPropertyGridCtrl* pPropList, const CString& name, const CString& value, LPCTSTR descr, bool bEnable )
+{
+	// VT_BSTR
+	CMFCPropertyGridProperty* pProp = new CMFCPropertyGridProperty(name, (COleVariant)value, descr);
+	SetAndAddToPropertyList(pPropList, pProp, bEnable, true, false);
+}
+
+static void BuildPropGridCtrl(CMFCPropertyGridCtrl* pPropDataList, const AcStringArray& fields, const AcStringArray& values)
+{
+	int n = fields.length();
+	for(int i=0;i<n;i++)
+	{
+		AddStringProperty(pPropDataList, fields[i].kACharPtr(), values[i].kACharPtr(), NULL, true);
+	}
+}
+
+IMPLEMENT_DYNAMIC(PropertyDataDlg, CDialog)
+
+PropertyDataDlg::PropertyDataDlg(CWnd* pParent /*=NULL*/)
+	: CDialog(PropertyDataDlg::IDD, pParent)
+{
+
+}
+
+PropertyDataDlg::~PropertyDataDlg()
+{
+}
+
+void PropertyDataDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CDialog::DoDataExchange(pDX);
+}
+
+BEGIN_MESSAGE_MAP(PropertyDataDlg, CDialog)
+END_MESSAGE_MAP()
+
+BOOL PropertyDataDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+
+	// 创建, 定位, 显示CMFCPropertyGridCtrl
+	CRect rect;
+	GetDlgItem(IDC_PROP_POS)->GetWindowRect(&rect);
+	ScreenToClient(&rect);
+	m_propertyDataList.Create(WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_BORDER, rect, this, (UINT)-1);
+
+	m_propertyDataList.EnableHeaderCtrl(TRUE, _T("属性"), _T("值"));
+	m_propertyDataList.EnableDescriptionArea();
+	m_propertyDataList.SetVSDotNetLook();
+	//m_propertyDataList->MarkModifiedProperties();
+
+	BuildPropGridCtrl(&m_propertyDataList, m_fields, m_values);
+
+	return TRUE;
+}

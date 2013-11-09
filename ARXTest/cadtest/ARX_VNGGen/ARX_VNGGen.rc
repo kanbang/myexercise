@@ -1,0 +1,171 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// 中文(中华人民共和国) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CHS)
+#ifdef _WIN32
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+#pragma code_page(936)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,1
+ PRODUCTVERSION 1,0,0,1
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "ARX_VNGGen ObjectARX application"
+            VALUE "FileVersion", "1, 0, 0, 1"
+            VALUE "InternalName", "ARX_VNGGen"
+            VALUE "LegalCopyright", "Copyright ?2002"
+            VALUE "OriginalFilename", "ARX_VNGGen.arx"
+            VALUE "ProductName", "ARX_VNGGen Application"
+            VALUE "ProductVersion", "1, 0, 0, 1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_VNG_GEN_DLG DIALOGEX 0, 0, 372, 207
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "设置通风网络绘制参数"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    EDITTEXT        IDC_VNG_GEN_NODESEP,71,24,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_RANKSEP,71,55,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_RATIO,71,85,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_WIDTH,71,112,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_HEIGHT,71,139,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_NODE_WIDTH,248,18,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_NODE_HEIGHT,248,41,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_NODE_TEXT_HEIGHT,248,62,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_ARROW_WIDTH,251,94,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_ARROW_LENGTH,251,120,48,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_VNG_GEN_EDGE_TEXT_HEIGHT,251,145,48,14,ES_AUTOHSCROLL
+    CONTROL         "是否显示分支编号",IDC_VNG_GEN_NEED_EDGE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,191,166,80,10
+    DEFPUSHBUTTON   "确定",IDOK,85,186,56,21
+    PUSHBUTTON      "取消",IDCANCEL,227,186,56,21
+    LTEXT           "水平最小间距",IDC_STATIC,11,26,49,8
+    LTEXT           "垂直最小间距",IDC_STATIC,11,58,49,8
+    LTEXT           "三角形箭头宽度",IDC_STATIC,191,96,57,8
+    LTEXT           "三角形箭头长度",IDC_STATIC,191,123,57,8
+    LTEXT           "标注字体高度",IDC_STATIC,191,148,49,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,124,27,57,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,301,97,57,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,301,123,57,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,301,148,57,8
+    LTEXT           "高/宽比",IDC_STATIC,11,88,28,8
+    LTEXT           "图形宽度",IDC_STATIC,11,116,33,8
+    LTEXT           "图形高度",IDC_STATIC,11,144,33,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,124,141,57,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,124,114,57,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,124,58,57,8
+    GROUPBOX        "图形参数",IDC_STATIC,7,7,174,174
+    LTEXT           "节点宽度",IDC_STATIC,192,22,33,8
+    LTEXT           "节点高度",IDC_STATIC,192,44,33,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,302,43,57,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,302,20,57,8
+    GROUPBOX        "节点参数",IDC_STATIC,188,7,176,73
+    GROUPBOX        "分支参数",IDC_STATIC,187,83,176,98
+    LTEXT           "标注字体高度",IDC_STATIC,192,65,49,8
+    LTEXT           "（单位：毫米）",IDC_STATIC,302,64,57,8
+    CONTROL         "是否使用默认宽高设置",IDC_VNG_GEN_USE_DEF_WH,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,165,96,10
+    GROUPBOX        "",IDC_STATIC,7,75,174,106
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_VNG_GEN_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 365
+        TOPMARGIN, 7
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_PROJNAME            "ARX_VNGGen"
+END
+
+#endif    // 中文(中华人民共和国) resources
+/////////////////////////////////////////////////////////////////////////////
+
+

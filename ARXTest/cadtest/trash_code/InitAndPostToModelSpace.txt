@@ -1,0 +1,38 @@
+
+	// 辅助方法
+	// 输入一个MineGE对象，初始化并提交到数据库，然后关闭
+	//	1) 如果pGE == 0，则返回false
+	//	2) 如果该图元的类型映射为空(无法建立图层), 则返回false
+	//	3) 如果初始化draw及属性数据失败, 则返回false
+	//	4) 如果提交到数据库失败, 则返回false
+	//	5) 返回false, 由用户负责销毁pGE的内存
+	static bool PostToModelSpace(MineGE* pGE);
+
+
+bool ArxUtilHelper::PostToModelSpace( MineGE* pGE )
+{
+	if(pGE == 0) return false;
+
+	// 初始化图层
+	//CString layerName = TypeNameMapHelper::GetTypeNameMap(pGE->getTypeName());
+	//if(layerName.GetLength() == 0) return false;
+
+	//// 如果图层不存在，则建立图层
+	//LayerHelper::AddLayer(layerName);
+
+	//// 设置图层
+	//pGE->setLayer(layerName);
+
+	if(!ArxUtilHelper::PostToModelSpace(pGE)) return false;
+
+	pGE->close();
+
+// 添加到数据后处理闭合的代码移动到
+// LinkedGEAppendReactor::objectAppend()中
+	//if(pGE->isKindOf(LinkedGE::desc()))
+	//{
+	//	// 如果派生于LinkedGE类图元，需要处理连接闭合
+	//	DrawHelper::LinkedGEJunctionClosure2(pGE->objectId());
+	//}
+	return true;
+}

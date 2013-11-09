@@ -1,0 +1,144 @@
+#include "stdafx.h"
+#include "HelperClass.h"
+#include "MineGE.h"
+#include "config.h"
+
+static void GetTypeNames(const AcDbObjectIdArray& objIds, AcStringArray& types)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	int len = objIds.length();
+	for(int i=0;i<len;i++)
+	{
+		AcDbObject* pObj;
+		pTrans->getObject(pObj, objIds[i], AcDb::kForRead);
+
+		MineGE* pGE = MineGE::cast(pObj);
+		types.append(pGE->getTypeName());
+	}
+	actrTransactionManager->endTransaction();
+}
+
+static void GetDataObjects(const AcDbObjectIdArray& objIds, AcDbObjectIdArray& dbObjIds)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	int len = objIds.length();
+	for(int i=0;i<len;i++)
+	{
+		AcDbObject* pObj;
+		pTrans->getObject(pObj, objIds[i], AcDb::kForRead);
+
+		MineGE* pGE = MineGE::cast(pObj);
+
+		AcDbObjectId dbObjId = pGE->getDataObject();
+		dbObjIds.append(dbObjId);
+	}
+	actrTransactionManager->endTransaction();
+}
+
+static void MoveOneData(const AcDbObjectId& objId, const CString& type, const AcDbObjectId& dbObjId)
+{
+	AcStringArray fields;
+	FieldHelper::GetAllFields(type, fields);
+
+	AcDbObject* pObj;
+	acdbOpenObject(pObj, objId, AcDb::kForWrite);
+
+	resbuf* pAppNode = pObj->xData(_T("临时数据"));
+	if(pAppNode == 0)
+	{
+		pAppNode = acutBuildList(AcDb::kDxfRegAppName, _T("临时数据"), 0);
+	}
+	resbuf* pTemp = pAppNode;
+
+	int len = fields.length();
+	for(int i=0;i<len;i++)
+	{
+		CString name = fields[i].kACharPtr();
+		CString value;
+		DataHelper::GetPropertyData(dbObjId, name, value);
+
+		pTemp->rbnext = acutBuildList(AcDb::kDxfXdAsciiString, name, 
+			                          AcDb::kDxfXdAsciiString, value, 0);
+		while(pTemp->rbnext != 0)
+		{
+			pTemp = pTemp->rbnext;
+		}
+	}
+	pObj->setXData(pAppNode);
+	acutRelRb(pAppNode);
+
+	pObj->close();
+}
+
+static void MoveData_Helper(const AcDbObjectIdArray& objIds,
+							const AcStringArray& types,
+							const AcDbObjectIdArray& dbObjIds)
+{
+	int len = objIds.length();
+	for(int i=0;i<len;i++)
+	{
+		MoveOneData(objIds[i], types[i].kACharPtr(), dbObjIds[i]);
+	}
+}
+
+// 根据类型名称查找
+static void GetDataObjectFromDict(const CString& dictName, AcDbObjectIdArray& objIds)
+{
+	ArxDictTool2* pDict = ArxDictTool2::GetDictTool(dictName);
+	pDict->getAllEntries(objIds);
+	delete pDict;
+}
+
+static void DeleteAllDataObjects()
+{
+	AcDbObjectIdArray dbObjIds;
+	GetDataObjectFromDict(MINEGE_DATA_OBJECT_DICT, dbObjIds);
+	GetDataObjectFromDict(OBJECT_LIST_DATA_DICT, dbObjIds);
+	GetDataObjectFromDict(GLOBAL_SINGLE_INFO_DICT, dbObjIds);
+
+	ArxEntityHelper::EraseObjects2(dbObjIds, true);
+}
+
+static void DeleteDict(const CString& dictName)
+{
+	AcDbDictionary *pNameObjDict;
+	acdbHostApplicationServices()->workingDatabase()->getNamedObjectsDictionary(pNameObjDict, AcDb::kForWrite);
+	
+	pNameObjDict->remove(dictName);
+
+	pNameObjDict->close();
+}
+
+static void DeleteAllDicts()
+{
+	DeleteDict(PROPERTY_DATA_FIELD_DICT);
+	DeleteDict(PROPERTY_DATA_FIELD_INFO_DICT);
+	DeleteDict(TYPE_NAME_MAP_DICT);
+	DeleteDict(STRING_LIST_DICT);
+	DeleteDict(INT_LIST_DICT);
+	DeleteDict(OBJECT_LIST_DICT);
+	DeleteDict(MINEGE_DATA_OBJECT_DICT);
+	DeleteDict(OBJECT_LIST_DATA_DICT);
+	DeleteDict(GLOBAL_SINGLE_INFO_DICT);
+	DeleteDict(_T("通风网络图绘制参数词典"));
+}
+
+void MoveData()
+{
+	ArxDataTool::RegAppName(acdbHostApplicationServices()->workingDatabase(), _T("临时数据"));
+
+	AcDbObjectIdArray objIds;
+	DrawHelper::FindMineGEs(_T("MineGE"), objIds);
+
+	AcStringArray types;
+	GetTypeNames(objIds, types);
+
+	AcDbObjectIdArray dbObjIds;
+	GetDataObjects(objIds, dbObjIds);
+
+	MoveData_Helper(objIds, types, dbObjIds);
+
+	DeleteAllDataObjects();
+
+	DeleteAllDicts();
+}

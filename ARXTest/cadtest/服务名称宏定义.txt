@@ -1,0 +1,13 @@
+// 将符号转变成字符串
+#define SYMBOL_STRINGIZE(symbol) DO_SYMBOL_STRINGIZE(symbol)
+#define DO_SYMBOL_STRINGIZE(symbol) _T(#symbol)
+
+// 将2个符号连接起来
+#define SYMBOL_JOIN2(symbol1, symbol2) DO_SYMBOL_JOIN2(symbol1, symbol2)
+#define DO_SYMBOL_JOIN2(symbol1, symbol2) DO_SYMBOL_JOIN2_IMPL(symbol1, symbol2)
+#define DO_SYMBOL_JOIN2_IMPL(symbol1, symbol2) symbol1##symbol2
+
+#define ARX_MODULE_SERVICE_NAME_DEFINE(ArxModuleName) \
+#ifndef SYMBOL_JOIN2(ArxModuleName, _SERVICE_NAME) \
+#define SYMBOL_JOIN2(ArxModuleName, _SERVICE_NAME) SYMBOL_STRINGIZE(SYMBOL_JOIN2(ArxModuleName, _SERVICE_NAME)) \
+#endif

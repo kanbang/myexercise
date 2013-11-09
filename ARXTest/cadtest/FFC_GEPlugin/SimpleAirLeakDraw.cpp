@@ -1,0 +1,175 @@
+#include "StdAfx.h"
+#include "SimpleAirLeakDraw.h"
+
+#include "DrawTool.h"
+
+ACRX_CONS_DEFINE_MEMBERS ( SimpleAirLeakDraw, MineGEDraw, 1 )
+ACRX_CONS_DEFINE_MEMBERS ( SimpleSourceAirLeakDraw, SimpleAirLeakDraw, 1 )
+ACRX_CONS_DEFINE_MEMBERS ( SimpleSinkAirLeakDraw, SimpleAirLeakDraw, 1 )
+
+SimpleAirLeakDraw::SimpleAirLeakDraw(): m_st( true )
+{
+}
+
+SimpleAirLeakDraw::~SimpleAirLeakDraw( void )
+{
+}
+
+void SimpleAirLeakDraw::setAllExtraParamsToDefault()
+{
+    const double phi = 0.61803399;
+    m_radius = 20 * phi;
+}
+
+void SimpleAirLeakDraw::configExtraParams()
+{
+
+}
+
+void SimpleAirLeakDraw::updateExtraParams()
+{
+
+}
+
+void SimpleAirLeakDraw::writeKeyParam( DrawParamWriter& writer )
+{
+    writer.writePoint( m_pt );
+}
+
+void SimpleAirLeakDraw::readKeyParam( DrawParamReader& reader )
+{
+    reader.readPoint( m_pt );
+}
+
+void SimpleAirLeakDraw::readExtraParam( DrawParamReader& reader )
+{
+    reader.readDouble( m_radius );
+}
+
+void SimpleAirLeakDraw::writeExtraParam( DrawParamWriter& writer )
+{
+    writer.writeDouble( m_radius );
+}
+
+//void SimpleAirLeakDraw::regPropertyDataNames( AcStringArray& names ) const
+//{
+//	names.append(_T("源汇类型"));
+//}
+//
+//void SimpleAirLeakDraw::readPropertyDataFromGE( const AcStringArray& values )
+//{
+//	m_st = (1 == _ttoi(values[0].kACharPtr())%2); // 保证值为{0,1}
+//}
+
+static void DrawCross( AcGiWorldDraw* mode, const AcGePoint3d& pt, double radius )
+{
+    AcGeVector3d v( AcGeVector3d::kXAxis );
+    v *= radius;
+
+    for( int i = 0; i < 4; i++ )
+    {
+        AcGePoint3dArray pts;
+        pts.append( pt );
+        pts.append( pt + v );
+        mode->geometry().worldLine( pts.asArrayPtr() );
+
+        v.rotateBy( PI / 2, AcGeVector3d::kZAxis );
+    }
+}
+
+static void DrawAirLeak( AcGiWorldDraw* mode, const AcGePoint3d& pt, double radius, bool st )
+{
+    DrawCircle( mode, pt, radius, false );
+    if( st )
+    {
+        // 漏风源
+        DrawCross( mode, pt, radius );
+    }
+    else
+    {
+        // 漏风汇
+        DrawLine( mode, pt, 0, radius );
+        DrawLine( mode, pt, PI, radius );
+    }
+}
+
+Adesk::Boolean SimpleAirLeakDraw::subWorldDraw( AcGiWorldDraw* mode )
+{
+    assertReadEnabled () ;
+
+    // 根据数据m_st绘制漏风源汇
+    DrawAirLeak( mode, m_pt, m_radius, m_st );
+
+    return Adesk::kTrue;
+}
+
+Acad::ErrorStatus SimpleAirLeakDraw::subTransformBy( const AcGeMatrix3d& xform )
+{
+    // 插入点变换
+    m_pt.transformBy( xform );
+
+    AcGeVector3d v( AcGeVector3d::kXAxis );
+    v.transformBy( xform );
+
+//	m_radius *= v.length();
+
+    return Acad::eOk;
+}
+
+Acad::ErrorStatus SimpleAirLeakDraw::subGetOsnapPoints (
+    AcDb::OsnapMode osnapMode,
+    int gsSelectionMark,
+    const AcGePoint3d& pickPoint,
+    const AcGePoint3d& lastPoint,
+    const AcGeMatrix3d& viewXform,
+    AcGePoint3dArray& snapPoints,
+    AcDbIntArray& geomIds ) const
+{
+    assertReadEnabled () ;
+    // 捕捉2种类型的点：端点和中心点
+    if( osnapMode != AcDb::kOsModeCen )
+        return Acad::eOk;
+
+    Acad::ErrorStatus es = Acad::eOk;
+
+    if( osnapMode == AcDb::kOsModeCen )
+    {
+        snapPoints.append( m_pt );
+    }
+
+    return es;
+}
+
+Acad::ErrorStatus SimpleAirLeakDraw::subGetGripPoints( AcGePoint3dArray& gripPoints, AcDbIntArray& osnapModes, AcDbIntArray& geomIds ) const
+{
+    assertReadEnabled () ;
+
+    gripPoints.append( m_pt );
+
+    return Acad::eOk;
+}
+
+Acad::ErrorStatus SimpleAirLeakDraw::subMoveGripPointsAt( const AcDbIntArray& indices, const AcGeVector3d& offset )
+{
+    assertWriteEnabled () ;
+
+    for( int i = 0; i < indices.length(); i++ )
+    {
+        int idx = indices.at( i );
+        if ( idx == 0 )
+        {
+            m_pt += offset; 			// 插入点偏移
+        }
+    }
+    return Acad::eOk;
+}
+
+SimpleSourceAirLeakDraw::SimpleSourceAirLeakDraw()
+{
+    m_st = true;
+}
+
+SimpleSinkAirLeakDraw::SimpleSinkAirLeakDraw()
+{
+    m_st = false;
+}

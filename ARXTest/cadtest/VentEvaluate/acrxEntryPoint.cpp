@@ -1,0 +1,201 @@
+#include "StdAfx.h"
+#include "resource.h"
+
+#include "../VentNetworkAlgo/VNAlgoHelper.h"
+
+#include "UIHelper.h"
+#include "ReactorHelper.h"
+
+/* 全局函数(实现在InitDefData.cpp) */
+extern void InitDefData();
+extern void SetTunnelMaterial();
+
+// 定义注册服务名称
+#ifndef VENT_EVALUATE_SERVICE_NAME
+#define VENT_EVALUATE_SERVICE_NAME _T("VENTEVALUATE_SERVICE_NAME")
+#endif
+
+class CVentEvaluateApp : public AcRxArxApp
+{
+
+public:
+    CVentEvaluateApp () : AcRxArxApp () {}
+
+    virtual AcRx::AppRetCode On_kInitAppMsg ( void* pkt )
+    {
+
+        AcRx::AppRetCode retCode = AcRxArxApp::On_kInitAppMsg ( pkt ) ;
+
+        ReactorHelper::CreateSelectedGE_EditorReactor();
+
+        // 注册服务
+        acrxRegisterService( VENT_EVALUATE_SERVICE_NAME );
+
+        //AfxInitRichEdit2();
+
+        acutPrintf( _T( "\nVentEvaluate::On_kInitAppMsg\n" ) );
+
+        return ( retCode ) ;
+    }
+
+    virtual AcRx::AppRetCode On_kUnloadAppMsg ( void* pkt )
+    {
+
+        AcRx::AppRetCode retCode = AcRxArxApp::On_kUnloadAppMsg ( pkt ) ;
+
+        ReactorHelper::RemoveSelectedGE_EditorReactor();
+
+        // 删除服务
+        delete acrxServiceDictionary->remove( VENT_EVALUATE_SERVICE_NAME );
+
+        // 销毁资源
+        UIHelper::DestroyDataInputDockBar();
+        UIHelper::DestroyWindStationDockBar();
+
+        UIHelper::DestroyCycleListDockBar();
+        UIHelper::DestroyCCListDockBar();
+        UIHelper::DestroyVentShaftDockBar();
+
+        UIHelper::DestroyDataListDockBar();
+
+        acutPrintf( _T( "\nVentEvaluate::On_kUnloadAppMsg\n" ) );
+
+        return ( retCode ) ;
+    }
+
+    virtual AcRx::AppRetCode On_kLoadDwgMsg( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxDbxApp::On_kLoadDwgMsg ( pkt ) ;
+
+        acutPrintf( _T( "\nVentEvaluate::On_kLoadDwgMsg\n" ) );
+
+        return retCode;
+    }
+
+    virtual AcRx::AppRetCode On_kUnloadDwgMsg( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxDbxApp::On_kUnloadDwgMsg ( pkt ) ;
+
+        acutPrintf( _T( "\nVentEvaluate::On_kUnloadDwgMsg\n" ) );
+
+        return retCode;
+    }
+
+    virtual void RegisterServerComponents ()
+    {
+    }
+
+    static void VentEvaluate_testMineInfoDlg( void )
+    {
+        UIHelper::ShowMineInfoDlg();
+    }
+
+    static void VentEvaluate_testProjectInfoDlg( void )
+    {
+        UIHelper::ShowProjectInfoDlg();
+    }
+
+    static void VentEvaluate_testDataInputDlg( void )
+    {
+        InitDefData();
+
+        UIHelper::ShowDataInputDockBar();
+    }
+
+    static void VentEvaluate_testWindStationDlg( void )
+    {
+        UIHelper::ShowWindStationDockBar();
+    }
+
+    static void VentEvaluate_testInstrumentDlg( void )
+    {
+        UIHelper::ShowInstrumentDlg();
+    }
+
+    static void VentEvaluate_testEvalDlg( void )
+    {
+        InitDefData();
+
+        UIHelper::ShowEvalDlg();
+    }
+
+    static void VentNetworkAlgo_ConnectedCheck( void )
+    {
+        if( ConnectivityHelper::Connected() )
+        {
+            AfxMessageBox( _T( "通风网络是连通的" ) );
+        }
+        else
+        {
+            AfxMessageBox( _T( "通风网络是不连通的" ) );
+        }
+    }
+
+    static void VentNetworkAlgo_DagCheck( void )
+    {
+        if( ConnectivityHelper::DAG() )
+        {
+            AfxMessageBox( _T( "通风网络没有单向回路" ) );
+        }
+        else
+        {
+            AfxMessageBox( _T( "通风网络中包含单向回路" ) );
+        }
+    }
+
+    static void VentNetworkAlgo_FindCC( void )
+    {
+        UIHelper::ShowCCListDockBar();
+    }
+
+    static void VentNetworkAlgo_FindSCC( void )
+    {
+        UIHelper::ShowCycleListDockBar();
+    }
+
+    static void VentNetworkAlgo_IdentifyShaft( void )
+    {
+        UIHelper::ShowVentShaftDockBar();
+    }
+
+    static void VentEvaluate_ShowDataList( void )
+    {
+        UIHelper::ShowDataListDockBar();
+    }
+
+    // 设置默认巷道材质类型
+    static void VentEvaluate_SetTunnelMaterial( void )
+    {
+        SetTunnelMaterial();
+    }
+
+    // 临时使用(m3/s --> m3/min)
+    static void VentEvaluate_ConvertQUnit( void )
+    {
+        extern void ConvertQUnit();
+
+        ConvertQUnit();
+    }
+} ;
+
+//-----------------------------------------------------------------------------
+IMPLEMENT_ARX_ENTRYPOINT( CVentEvaluateApp )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _testMineInfoDlg, testMineInfoDlg, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _testProjectInfoDlg, testProjectInfoDlg, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _testDataInputDlg, testDataInputDlg, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _testWindStationDlg, testWindStationDlg, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _testInstrumentDlg, testInstrumentDlg, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _testEvalDlg, testEvalDlg, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentNetworkAlgo, _ConnectedCheck, ConnectedCheck, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentNetworkAlgo, _DagCheck, DagCheck, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentNetworkAlgo, _FindCC, FindCC, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentNetworkAlgo, _FindSCC, FindSCC, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentNetworkAlgo, _IdentifyShaft, IdentifyShaft, ACRX_CMD_TRANSPARENT, NULL )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _ShowDataList, ShowDataList, ACRX_CMD_TRANSPARENT | ACRX_CMD_USEPICKSET | ACRX_CMD_REDRAW, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _SetTunnelMaterial, SetTunnelMaterial, ACRX_CMD_TRANSPARENT, NULL )
+ACED_ARXCOMMAND_ENTRY_AUTO( CVentEvaluateApp, VentEvaluate, _ConvertQUnit, ConvertQUnit, ACRX_CMD_TRANSPARENT, NULL )
+

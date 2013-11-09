@@ -1,0 +1,31 @@
+dll/arx项目属性区别
+
+【问题描述】
+如果使用向导建立的mfc dll项目的默认设置，arx项目在使用的时候，会出现一些莫名其妙的错误(编译可能通过，但链接会出现错误)
+
+【原因】
+arx项目的crt设置始终是/MD，且debug版本没有定义_DEBUG符号；
+
+【解决方案】
+需要对mfc dll项目debug版本属性进行修改
+1、crt修改为/MD
+2、预处理器定义删除_DEBUG
+
+【输出目录及中间文件目录修改】
+arx向导建立的项目将生成文件输出到win32/debug或win32/release目录下
+而mfc dll项目向导设置的路径不是输出到上述路径中，需要做如下修改
+
+【输出目录】
+$(SolutionDir)$(ConfigurationName)
+修改成
+$(SolutionDir)\$(PlatformName)\$(ConfigurationName)
+
+【中间目录】
+$(ConfigurationName)
+修改成
+$(PlatformName)\$(ConfigurationName)
+
+其中 $(PlatformName) = win32，这样自动将生成文件放在解决方案目录下的
+win32/debug
+或
+win32/release

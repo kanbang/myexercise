@@ -1,0 +1,58 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ARX_VNGGen", "ARX_VNGGen\ARX_VNGGen.vcproj", "{19EBA1FD-54A5-4F67-9043-99C23BC91676}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F664D392-D365-4172-8E71-88F39B53F85A} = {F664D392-D365-4172-8E71-88F39B53F85A}
+		{39FF75BA-879C-465C-BEFC-6CF30FAA0142} = {39FF75BA-879C-465C-BEFC-6CF30FAA0142}
+		{E73D4DDF-2EB8-499B-9468-C8A7770734D7} = {E73D4DDF-2EB8-499B-9468-C8A7770734D7}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VNGGen", "VNGGen\VNGGen.vcproj", "{39FF75BA-879C-465C-BEFC-6CF30FAA0142}"
+	ProjectSection(ProjectDependencies) = postProject
+		{115EFA2E-0A90-405B-8395-B75A4C6F32A1} = {115EFA2E-0A90-405B-8395-B75A4C6F32A1}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ArxHelper", "ArxHelper\ArxHelper.vcproj", "{E73D4DDF-2EB8-499B-9468-C8A7770734D7}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VNG_GE", "VNG_GE\VNG_GE.vcproj", "{F664D392-D365-4172-8E71-88F39B53F85A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VVLoader", "VVLoader\VVLoader.vcproj", "{E0E104AE-921E-42A4-B2C9-7F5D60BCDC0F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tool", "Tool\Tool.vcproj", "{115EFA2E-0A90-405B-8395-B75A4C6F32A1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{19EBA1FD-54A5-4F67-9043-99C23BC91676}.Debug|Win32.ActiveCfg = Debug|Win32
+		{19EBA1FD-54A5-4F67-9043-99C23BC91676}.Debug|Win32.Build.0 = Debug|Win32
+		{19EBA1FD-54A5-4F67-9043-99C23BC91676}.Release|Win32.ActiveCfg = Release|Win32
+		{19EBA1FD-54A5-4F67-9043-99C23BC91676}.Release|Win32.Build.0 = Release|Win32
+		{39FF75BA-879C-465C-BEFC-6CF30FAA0142}.Debug|Win32.ActiveCfg = Debug|Win32
+		{39FF75BA-879C-465C-BEFC-6CF30FAA0142}.Debug|Win32.Build.0 = Debug|Win32
+		{39FF75BA-879C-465C-BEFC-6CF30FAA0142}.Release|Win32.ActiveCfg = Release|Win32
+		{39FF75BA-879C-465C-BEFC-6CF30FAA0142}.Release|Win32.Build.0 = Release|Win32
+		{E73D4DDF-2EB8-499B-9468-C8A7770734D7}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E73D4DDF-2EB8-499B-9468-C8A7770734D7}.Debug|Win32.Build.0 = Debug|Win32
+		{E73D4DDF-2EB8-499B-9468-C8A7770734D7}.Release|Win32.ActiveCfg = Release|Win32
+		{E73D4DDF-2EB8-499B-9468-C8A7770734D7}.Release|Win32.Build.0 = Release|Win32
+		{F664D392-D365-4172-8E71-88F39B53F85A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F664D392-D365-4172-8E71-88F39B53F85A}.Debug|Win32.Build.0 = Debug|Win32
+		{F664D392-D365-4172-8E71-88F39B53F85A}.Release|Win32.ActiveCfg = Release|Win32
+		{F664D392-D365-4172-8E71-88F39B53F85A}.Release|Win32.Build.0 = Release|Win32
+		{E0E104AE-921E-42A4-B2C9-7F5D60BCDC0F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E0E104AE-921E-42A4-B2C9-7F5D60BCDC0F}.Debug|Win32.Build.0 = Debug|Win32
+		{E0E104AE-921E-42A4-B2C9-7F5D60BCDC0F}.Release|Win32.ActiveCfg = Release|Win32
+		{E0E104AE-921E-42A4-B2C9-7F5D60BCDC0F}.Release|Win32.Build.0 = Release|Win32
+		{115EFA2E-0A90-405B-8395-B75A4C6F32A1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{115EFA2E-0A90-405B-8395-B75A4C6F32A1}.Debug|Win32.Build.0 = Debug|Win32
+		{115EFA2E-0A90-405B-8395-B75A4C6F32A1}.Release|Win32.ActiveCfg = Release|Win32
+		{115EFA2E-0A90-405B-8395-B75A4C6F32A1}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,4 @@
+OpenThreadsd.lib osgAnimationd.lib osgd.lib osgDBd.lib osgFXd.lib osgGAd.lib osgManipulatord.lib osgParticled.lib osgPresentationd.lib osgShadowd.lib osgSimd.lib osgTerraind.lib osgTextd.lib osgUtild.lib osgViewerd.lib osgVolumed.lib osgWidgetd.lib osgQtd.lib
+
+
+OpenThreads.lib osgAnimation.lib osg.lib osgDB.lib osgFX.lib osgGA.lib osgManipulator.lib osgParticle.lib osgPresentation.lib osgShadow.lib osgSim.lib osgTerrain.lib osgText.lib osgUtil.lib osgViewer.lib osgVolume.lib osgWidget.lib osgQt.lib

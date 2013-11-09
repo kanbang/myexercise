@@ -1,0 +1,274 @@
+#include <Windows.h>
+#include "VNGGen.h"
+#include "Tool.h"
+#include "GraphParser.h"
+
+#include <fstream>
+#include <sstream>
+
+#define DATA_FILE_NAME "data.txt"
+#define GV_FILE_NAME "gd.gv"
+#define OUTPUT_FILE_NAME "gd.txt"
+
+#define PI 3.1415926535897932384626433832795
+
+#define BOOL_2_STRING(b) (b?"true":"false")
+
+/* 需要依赖Tool项目(链接Tool.lib) */
+//#include "../Tool/eoLogger.h"
+
+enum GRAPH_INDEX
+{
+	EDGE_INDEX       = 0,  // 分支编号
+	START_NODE_INDEX = 1,  // 始节点编号
+	END_NODE_INDEX   = 2,  // 末节点编号
+	DEF_COL_NUM      = 3   // 每一行的列数 
+};
+
+// 生成拓扑数据文件
+// 关于编号的实现还需要修改
+// 目前默认使用lemon自带的id方法
+static bool CreateTopologyDataFile(Digraph& dg, const string& dataFilePath)
+{
+	// 1) 创建文件
+	ofstream outFile(dataFilePath.c_str());
+	if(!outFile) return false;
+
+	// 2) 使用lemon自带的id作为编号
+	for(Digraph::ArcIt e(dg); e!=INVALID; ++e)
+	{
+		Digraph::Node u = dg.source(e);
+		Digraph::Node v = dg.target(e);
+
+		outFile<<dg.id(e)<<"\t"<<dg.id(u)<<"\t"<<dg.id(v)<<"\n";
+	}
+
+	outFile.close();
+
+	return true;
+}
+
+// 注意：
+//       浮点数单位:英寸
+static bool CreateDotFile(const string& dataFilePath, const string& gvFilePath, 
+						  double m_nodesep, double m_ranksep,
+						  double m_graphRatio , double m_graphWidth, double m_graphHeight, bool m_useDefWH,
+						  double m_nodeWidth, double m_nodeHeight, double m_nodeTextHeight, double m_edgeTextHeight, 
+						  bool splines=true)
+{
+	ifstream inFile(dataFilePath.c_str());
+	if(!inFile) return false;
+	
+	ofstream outFile(gvFilePath.c_str());
+	if(!outFile) return false;
+
+	bool ret = true;
+
+	/* 写入图的类型声明以及图的名称G */
+	outFile<<"digraph G {\n";
+
+	// 设置图形属性
+	if(m_useDefWH)
+	{
+		outFile<<"\tgraph[rankdir=BT, splines="<<BOOL_2_STRING(splines)
+			   <<", nodesep=\""<<m_nodesep<<"\", ranksep=\""<<m_ranksep<<"\"]\n";
+	}
+	else
+	{
+		outFile<<"\tgraph[rankdir=BT, splines="<<BOOL_2_STRING(splines)
+			<<", nodesep=\""<<m_nodesep<<"\", ranksep=\""<<m_ranksep<<"\""
+			<<", ratio=fill, size=\""<<m_graphWidth
+			<<","<<m_graphHeight<<"\"]\n";
+	}
+
+	// 设置节点属性
+	outFile<<"\tnode[width=\""<<m_nodeWidth<<"\", height=\""<<m_nodeHeight<<"\", fontsize=\""<<m_nodeTextHeight<<"\"]\n";
+
+	// 设置分支属性
+	outFile<<"\tedge[arrowhead=none, arrowtail=none, fontsize=\""<<m_edgeTextHeight<<"\"];\n";
+
+	string strLine;
+	while(getline(inFile, strLine))
+	{
+		StringArray values;
+		SplitString(strLine, " \t", values);
+		if(values.size() != DEF_COL_NUM) 
+		{
+			ret = false; break;
+		}
+
+		string dotLine;
+		/*
+		 * values[0] <==> 分支编号
+		 * values[1] <==> 始节点
+		 * values[2] <==> 末节点
+		 */
+		string sNode = values[START_NODE_INDEX];
+		string tNode = values[END_NODE_INDEX];
+		string edgeNum = values[EDGE_INDEX];
+		outFile<<"\tv"<<sNode<<"->v"<<tNode<<" [label=\"e"<<edgeNum<<"\"];\n";
+		//dotLine.Format(_T("\t%s->%s [label=\"%s\"];\n"), sNode, tNode, edgeNum);
+	}
+	outFile<<"}\n";
+
+	outFile.close();
+	inFile.close();
+
+	return ret;
+}
+
+static bool GenDrawFormatFile(const string& dotExePath, const string& fmt, const string& gvFilePath, const string& outFilePath)
+{
+	/*
+	 * 调用外部程序dot.exe
+	 * 执行命令：dot -Tplain -o gd.dat gd.gv
+	 *            或 dot -Tsvg -o gd.dat gd.gv
+	 * 示例：生成一个png图形==> dot -Tpng -o xx.png gd.gv
+	 * 参见Graphviz的文档
+	 */
+	PROCESS_INFORMATION pi;
+	STARTUPINFO si;
+	memset(&si, 0, sizeof(si));
+	si.cb = sizeof(si);
+	si.wShowWindow = SW_HIDE;
+	si.dwFlags = STARTF_USESHOWWINDOW;
+	
+	stringstream ss;
+	ss<<" -T"<<fmt<<" -o "<<outFilePath<<" "<<gvFilePath;
+	string cmdLine = ss.str();
+
+	/*
+	 * CreateProcess只是初始化创建进程，进行执行需要一段时间
+	 * 如果不使用WaitForSingleObject方法等待进程执行结束
+	 * 那么GraphParser是无法打开gd.gv文件的
+	 * 因为dot对于一些比较大的文件生成也是需要一段时间的，并不是立即返回
+	 */
+	BOOL ret = CreateProcess((char*)dotExePath.c_str(), (char*)cmdLine.c_str(), NULL, FALSE, NULL, NULL, NULL, NULL, &si, &pi);
+	if(ret)
+	{
+		WaitForSingleObject(pi.hProcess, INFINITE);
+		CloseHandle(pi.hThread);
+		CloseHandle(pi.hProcess);
+	}
+	return ret;
+}
+
+static bool GenVentNetworkGraph(Digraph& dg, const string& dotExePath, 
+								double m_nodeSep, double m_rankSep,
+								double m_graphRatio, double m_graphWidth, double m_graphHeight, bool m_useDefWH,
+								double m_nodeWidth, double m_nodeHeight, double m_nodeTextHeight, double m_edgeTextHeight, 
+								GraphInfo& gi, NodeInfoArray& nis, EdgeInfoArray& eis)
+{
+	// 1) 构造拓扑数据文件路径
+	// a) 获取当前模块路径
+	string dirPath = GetAppPathDir();
+
+	//eo::log<<"当前模块路径:"<<dirPath<<std::endl;
+
+	// b) 构造拓扑数据文件路径
+	string dataFilePath = BuildPath(dirPath, DATA_FILE_NAME);
+
+	// c) 构造*.gv文件的路径
+	string gvFilePath = BuildPath(dirPath, GV_FILE_NAME);
+
+	// d) 构造输出文件的路径
+	string outFilePath = BuildPath(dirPath, OUTPUT_FILE_NAME);
+
+	//eo::log<<"拓扑数据文件:"<<dataFilePath<<std::endl;
+	//eo::log<<"gv文件的路径:"<<gvFilePath<<std::endl;
+	//eo::log<<"输出文件的路径:"<<outFilePath<<std::endl;
+
+	// 2) 生成拓扑数据文件
+	if(!CreateTopologyDataFile(dg, dataFilePath)) 
+	{
+		RemoveFile(dataFilePath);
+		//eo::log<<"生成拓扑数据失败"<<std::endl;
+		return false;
+	}
+
+	// 3) 生成gv文件
+	// if(!CreateDotFile(dataFilePath, gvFilePath, 0.5, 0.75, false))  // 用折线绘制分支
+	if(!CreateDotFile(dataFilePath, gvFilePath, 
+		              m_nodeSep, m_rankSep, 
+					  m_graphRatio ,m_graphWidth ,m_graphHeight, m_useDefWH,
+					  m_nodeWidth, m_nodeHeight, m_nodeTextHeight, m_edgeTextHeight, 
+					  true))  // 用样条曲线绘制分支
+	{
+		//eo::log<<"拓扑数据文件格式不正确!"<<std::endl;
+		// 删除临时文件
+		RemoveFile(dataFilePath);
+		RemoveFile(gvFilePath);
+		return false;
+	}
+
+	// 4) 调用dot.exe生成输出文件，文件格式为plain
+	string fmt = "plain";
+	if(!GenDrawFormatFile(dotExePath, fmt, gvFilePath, outFilePath))
+	{
+		//eo::log<<"创建进程调用dot失败!"<<std::endl;
+		// 删除临时文件
+		RemoveFile(dataFilePath);
+		RemoveFile(gvFilePath);
+		RemoveFile(outFilePath);
+		return false;
+	}
+
+	// 5) 解析plain格式输出文件
+	//    读取节点和分支的几何坐标信息
+	bool ret = GraphParser::ReadGraphInfoFromPlainFile(outFilePath, gi, nis, eis);
+	if(!ret)
+	{
+		ClearNodeInfoArray(nis);
+		ClearEdgeInfoArray(eis);
+		
+		//eo::log<<"解析失败!"<<std::endl;
+	}
+
+	// 删除临时文件
+	RemoveFile(dataFilePath);
+	RemoveFile(gvFilePath);
+	RemoveFile(outFilePath);
+
+	//eo::log<<"解析"<<BOOL_2_STRING(ret)<<std::endl;
+
+	return ret;
+}
+
+bool VNGGen(Digraph& dg, 
+			double m_nodeSep, double m_rankSep,
+			double m_graphRatio, double m_graphWidth, double m_graphHeight, bool m_useDefWH,
+			double m_nodeWidth, double m_nodeHeight, double m_nodeTextHeight, double m_edgeTextHeight, 
+			GraphInfo& gi, NodeInfoArray& nis, EdgeInfoArray& eis)
+{
+	// 初始化log
+	//eo::log << eo::file(BuildPath(GetAppPathDir(), "vng_log.txt"));
+	//eo::log << eo::file("d:\\vng_log.txt");
+
+	// 1) 查找graphviz路径
+	string dotExePath;
+	if(!ReadGraphvizInstallPath(dotExePath)) 
+	{
+		//eo::log<<"没有找到gv\n";
+		return false;
+	}
+	//eo::log<<"gv路径:"<<dotExePath<<std::endl;
+
+	// 2) 调用dot.exe生成网络图，读取几何信息
+	// 注：从词典读取的数据单位为mm，而输入参数的单位为inch，
+	//      使用INCH_2_MM宏进行转换
+	return GenVentNetworkGraph(dg, dotExePath, 
+                           MM_2_INCH(m_nodeSep), MM_2_INCH(m_rankSep), 
+						   MM_2_INCH(m_graphRatio), MM_2_INCH(m_graphWidth), MM_2_INCH(m_graphHeight), m_useDefWH, 
+						   MM_2_INCH(m_nodeWidth), MM_2_INCH(m_nodeHeight), MM_2_INCH(m_nodeTextHeight), MM_2_INCH(m_edgeTextHeight), 
+						   gi, nis, eis);
+}
+
+void ClearNodeInfoArray( NodeInfoArray& nis )
+{
+	GraphParser::ClearNodeInfoArrayImpl(nis);
+}
+
+void ClearEdgeInfoArray( EdgeInfoArray& eis )
+{
+	GraphParser::ClearEdgeInfoArrayImpl(eis);
+}

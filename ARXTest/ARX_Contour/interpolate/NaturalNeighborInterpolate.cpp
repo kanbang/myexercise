@@ -1,0 +1,111 @@
+#include "StdAfx.h"
+#include "NaturalNeighborInterpolate.h"
+
+#include <limits.h>
+#include <float.h>
+#include <math.h>
+
+extern "C"
+{
+#include "config.h"
+#include "nan.h"
+#include "minell.h"
+#include "nn.h"
+}
+
+#pragma comment(lib, "nn.lib")
+
+static point* BuildPointsArray( const AcGePoint3dArray& datas )
+{
+    int n = datas.length();
+    point* pin = ( point* )malloc( n * sizeof( point ) );
+    for( int i = 0; i < n; i++ )
+    {
+        pin[i].x = datas[i].x;
+        pin[i].y = datas[i].y;
+        pin[i].z = datas[i].z;
+    }
+    return pin;
+}
+
+static void WriteBackPointsArray( point* pout, AcGePoint3dArray& datas )
+{
+    int n = datas.length();
+    for( int i = 0; i < n; i++ )
+    {
+        datas[i].z = pout[i].z;
+    }
+}
+
+double NaturalNeighInterpolatePoint( const AcGePoint3dArray& datas, const AcGePoint3d& pt )
+{
+    int n = datas.length();
+    point* pin = ( point* )malloc( n * sizeof( point ) );
+    for( int i = 0; i < n; i++ )
+    {
+        pin[i].x = datas[i].x;
+        pin[i].y = datas[i].y;
+        pin[i].z = datas[i].z;
+    }
+    delaunay* d = delaunay_build( n, pin, 0, 0, 0, 0 );
+
+    nnpi* nn = nnpi_create( d );
+
+    point p;
+    p.x = pt.x;
+    p.y = pt.y;
+    p.z = 0;
+    nnpi_interpolate_point( nn, &p );
+
+    nnpi_destroy( nn );
+    delaunay_destroy( d );
+    free( pin );
+
+    return p.z;
+}
+
+void NaturalNeighInterpolatePoints( const AcGePoint3dArray& datas, AcGePoint3dArray& pts )
+{
+
+}
+
+double LinearInterpolatePoint( const AcGePoint3dArray& datas, const AcGePoint3d& pt )
+{
+    point* pin = BuildPointsArray( datas );
+
+    delaunay* d = delaunay_build( datas.length(), pin, 0, 0, 0, 0 );
+
+    lpi* lpi = lpi_build( d );
+
+    point p;
+    p.x = pt.x;
+    p.y = pt.y;
+    p.z = 0;
+    lpi_interpolate_point( lpi, &p );
+
+    lpi_destroy( lpi );
+    delaunay_destroy( d );
+    free( pin );
+
+    return p.z;
+}
+
+void LinearInterpolatePoints( const AcGePoint3dArray& datas, AcGePoint3dArray& pts )
+{
+    point* pin = BuildPointsArray( datas );
+
+    //delaunay* d = delaunay_build(n, pin, 0, 0, 0, 0);
+
+    //lpi* lpi = lpi_build(d);
+
+    point* pout = BuildPointsArray( pts );
+
+    lpi_interpolate_points( datas.length(), pin, pts.length(), pout );
+
+    WriteBackPointsArray( pout, pts );
+
+    //lpi_destroy(lpi);
+    //delaunay_destroy(d);
+    free( pin );
+    free( pout );
+}

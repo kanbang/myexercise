@@ -1,0 +1,41 @@
+#include "StdAfx.h"
+#include "UEM_AFCStrategy.h"
+
+namespace PJ
+{
+    UEM_AFCStrategy::UEM_AFCStrategy( const CString& tableName ) : AFCStrategy( tableName )
+    {
+    }
+
+    UEM_AFCStrategy::~UEM_AFCStrategy( void )
+    {
+    }
+
+    void UEM_AFCStrategy::setV( double v )
+    {
+        this->V = v;
+    }
+
+    double UEM_AFCStrategy::caculate()
+    {
+        return 0.07 * V;
+    }
+
+    void UEM_AFCStrategy::createTableImpl( TableCreator* pTableCreator )
+    {
+        AFCStrategy::createTableImpl( pTableCreator );
+
+        BEGIN_DEFINE_FIELD( TableCreator, pTableCreator )
+        DEFINE_REAL_FIELD( V )
+        END_DEFINE_FIELD
+    }
+
+    void UEM_AFCStrategy::writeToTableImpl( DataWriter* pDataWriter )
+    {
+        AFCStrategy::writeToTableImpl( pDataWriter );
+
+        BEGIN_WRITE_DATA( DataWriter, pDataWriter )
+        WRITE_SIMPLE_REAL_DATA( V )
+        END_WRITE_DATA
+    }
+}

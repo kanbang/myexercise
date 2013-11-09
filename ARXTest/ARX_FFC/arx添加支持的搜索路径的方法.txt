@@ -1,0 +1,49 @@
+来源：
+http://wangzecheng125.blog.163.com/blog/static/304625562009102710203453/
+
+后续还要涉及到arx程序的安装程序制作问题
+我比较偏向于在安装的时候指定搜索路径，同时在外部添加到arx的自动启动
+
+#import "acax18enu.tlb" no_implementation raw_interfaces_only named_guids
+
+static BOOL AddSupportPath(CStringArray &arPath)
+{
+	AutoCAD::IAcadPreferences *pPrefer;
+	AutoCAD::IAcadPreferencesFiles *pPreferFiles;
+	HRESULT hr = NOERROR;
+
+	TRY
+	{
+		LPDISPATCH pAcadDisp = acedGetAcadWinApp()->GetIDispatch(TRUE);
+		AutoCAD::IAcadApplication *pAcad = NULL;
+		if (SUCCEEDED(pAcadDisp->QueryInterface(AutoCAD::IID_IAcadApplication,(void**)&pAcad)))
+		{
+			BSTR supportPath;
+			hr = pAcad->get_Preferences(&pPrefer);
+			hr = pPrefer->get_Files(&pPreferFiles);
+			hr = pPreferFiles->get_SupportPath(&supportPath);
+			CString stemp = supportPath;
+			for (int i = 0; i< arPath.GetSize() ; i++)
+			{
+				CString ss = arPath.GetAt(i);
+				stemp = stemp + ";" + ss;
+			}
+			supportPath = stemp.AllocSysString();
+			pPreferFiles->put_SupportPath(supportPath);
+			SysFreeString(supportPath); // 用完释放
+		}
+		pPrefer->Release();
+		pPreferFiles->Release();
+		pAcad->Release();
+	}
+	CATCH(COleDispatchException,e)
+	{
+		e->ReportError();
+		e->Delete();
+		return FALSE;
+	}
+
+	END_CATCH;
+
+	return TRUE;
+}

@@ -1,0 +1,547 @@
+// 参考
+// http://hi.baidu.com/longchengjiang/blog/item/2cdde73fb897cac07d1e713f.html
+// 基于不规则三角网_TIN_的追踪等值线算法及对等值线光滑算法的研究
+
+#include "Contour.h"
+#include "GeoAttribs.h"
+#include "GeoAlgo.h"
+
+#include <cmath>
+#include <algorithm>
+#include <iterator>
+
+#define SCALE_FACTOR 1e-3
+
+// 对z进行小幅度偏移
+// zValue -- 当前要追踪的z值
+// z - 某一个坐标的z值
+static double TrimZ( double z, double zValue )
+{
+    return ( z + SCALE_FACTOR * zValue );
+}
+
+class Contour
+{
+public:
+    Contour( const PointArray& pts, const EdgeArray& ea, const TriangleArray& ta );
+    ~Contour();
+
+    // 搜索边界
+    void searchBoundary( PointArray& bpts, IntArray& bpos );
+
+    // 追踪等值线
+    void traceContour( double zValue, PointArray& cnpts, IntArray& cnpos, IntArray& dirs );
+
+private:
+    // 分别查找边界三角形和内部三角形, 查找等值线追踪起点
+    bool findStartTrianlgeTwice( double z, int& t0, int& e0, DT_Point& p );
+    // 查找第1个三角形作为等值线追踪起点
+    bool findStartTrianlge( double z, int& t0, int& e0, DT_Point& p, bool useBoundary );
+    // 从第i个三角形的第n条边进入
+    // 查找下一个三角形以及相应的
+    bool findNextTriangle( double z, int t1, int e1, int& t2, int& e2, DT_Point& p );
+    // 第i条边上是否有等值点
+    bool hasContourPoint( double z, int i );
+
+    // 设置第i条边的坐标
+    void setEdgePoint( int i, const DT_Point& p1, const DT_Point& p2 );
+    // 返回第i条的始点坐标
+    void getEdgePoint( int i, DT_Point& p1, DT_Point& p2 ) const;
+    // 返回第i条边对象指针
+    EdgeAttrib* getEdgeObject( int i ) const;
+    // 返回第i个三角形对象指针
+    TriangleAttrib* getTriangleObject( int i ) const;
+    // 返回第i个三角形的第n条边
+    int getTriangleEdge( int i, int n ) const;
+    // 返回第i条边的第n个三角形
+    int getEdgeTriangle( int i, int n ) const;
+    // 当前边ei位于三角形ti，返回边的另一个三角形
+    int getNextTriangle( int ei, int ti ) const;
+    // 当前边ei位于三角形ti，返回该三角形的下一条边
+    int getNextEdge( int ti, int ei ) const;
+    // 判断第i个三角形的第n条边上的另一个三角形是否已被使用
+    bool isNextTriangleUsed( int ti, int ei ) const;
+    // 判断第i个三角形的第n条边是否可用
+    bool canEdgeUse( int i, int n, double z, bool useBoundary );
+    // 在三角形中查找可用边
+    int findEdgeCanUse( int i, double z, bool useBoundary );
+    // 判断三角形ti和tj是否共边ei
+    bool isCoedge( int ti, int tj, int ei );
+    // 获取两条边的共点
+    int getCoNode( int e1, int e2 );
+    // 对边ei进行线性插值
+    void linearInterpolate( double z, int ei, DT_Point& p );
+private:
+    PointArray pa;
+    EdgeAttribArray eaa;
+    TriangleAttribArray taa;
+};
+
+Contour::Contour( const PointArray& pts, const EdgeArray& ea, const TriangleArray& ta )
+{
+    // 将点数据复制一份
+    std::copy( pts.begin(), pts.end(), std::back_inserter( pa ) );
+    // 构造边和三角形属性数据
+    BuildAttribs( ea, ta, eaa, taa );
+}
+
+Contour::~Contour()
+{
+    pa.clear();
+    for( int i = 0; i < ( int )eaa.size(); i++ )
+    {
+        delete eaa[i];
+    }
+    eaa.clear();
+    for( int i = 0; i < ( int )taa.size(); i++ )
+    {
+        delete taa[i];
+    }
+    taa.clear();
+}
+
+bool Contour::hasContourPoint( double z, int i )
+{
+    DT_Point p1, p2;
+    getEdgePoint( i, p1, p2 );
+    if( IsDoubleEqual( p1.z, z ) )
+    {
+        p1.z = TrimZ( z, p1.z );
+    }
+    if( IsDoubleEqual( p2.z, z ) )
+    {
+        p2.z = TrimZ( z, p2.z );
+    }
+    return ( InRange( p1.z, p2.z, z ) == 1 );
+}
+
+void Contour::setEdgePoint( int i, const DT_Point& p1, const DT_Point& p2 )
+{
+    DT_Edge e = getEdgeObject( i )->e;
+    pa[e.s] = p1;
+    pa[e.t] = p2;
+}
+
+void Contour::getEdgePoint( int i, DT_Point& p1, DT_Point& p2 ) const
+{
+    DT_Edge e = getEdgeObject( i )->e;
+    p1 = pa[e.s];
+    p2 = pa[e.t];
+}
+
+EdgeAttrib* Contour::getEdgeObject( int i ) const
+{
+    return eaa[i];
+}
+
+TriangleAttrib* Contour::getTriangleObject( int i ) const
+{
+    return taa[i];
+}
+
+int Contour::getTriangleEdge( int i, int n ) const
+{
+    return getTriangleObject( i )->getEdge( n );
+}
+
+int Contour::getEdgeTriangle( int i, int n ) const
+{
+    return getEdgeObject( i )->getTriangle( n );
+}
+
+int Contour::getNextTriangle( int ei, int ti ) const
+{
+    return getEdgeObject( ei )->getNextTriangle( ti );
+}
+
+int Contour::getNextEdge( int ti, int ei ) const
+{
+    return getTriangleObject( ti )->getNextEdge( ei );
+}
+
+bool Contour::isCoedge( int ti, int tj, int ei )
+{
+    // 排除边界
+    if( ti == -1 || tj == -1 ) return false;
+
+    // 排除两个三角形相同的情况
+    if( ti == tj ) return false;
+
+    int t0 = getEdgeTriangle( ei, 0 );
+    int t1 = getEdgeTriangle( ei, 1 );
+
+    return ( ( t0 == ti ) && ( t1 == tj ) ) ||
+           ( ( t0 == tj ) && ( t1 == t0 ) );
+}
+
+int Contour::getCoNode( int e1, int e2 )
+{
+    return getEdgeObject( e1 )->getCoNode( getEdgeObject( e2 ) );
+}
+
+void Contour::linearInterpolate( double z, int ei, DT_Point& p )
+{
+    // 获取第ni条边的端点坐标
+    DT_Point p1, p2;
+    getEdgePoint( ei, p1, p2 );
+
+    // 线性插值
+    p.z = z;
+    LinearInterpolate( p1, p2, p );
+}
+
+bool Contour::canEdgeUse( int i, int n, double z, bool useBoundary )
+{
+    int ei = getTriangleEdge( i, n );
+
+    bool b1 = useBoundary;
+    bool b2 = getEdgeObject( ei )->isBoundary();
+    if( b1 && !b2 ) return false;
+    if( !b1 && b2 ) return false;
+
+    return hasContourPoint( z, ei );
+}
+
+int Contour::findEdgeCanUse( int i, double z, bool useBoundary )
+{
+    if( canEdgeUse( i, 0, z, useBoundary ) ) return 0;
+    if( canEdgeUse( i, 1, z, useBoundary ) ) return 1;
+    if( canEdgeUse( i, 2, z, useBoundary ) ) return 2;
+
+    return -1;
+}
+
+bool Contour::findStartTrianlge( double z, int& t0, int& e0, DT_Point& p, bool useBoundary )
+{
+    bool ret = false;
+    for( int i = 0; i < ( int )taa.size(); i++ )
+    {
+        TriangleAttrib* pTriangle = taa[i];
+        if( pTriangle->used ) continue;
+
+        int n = findEdgeCanUse( i, z, useBoundary );
+        if( n != -1 )
+        {
+            t0 = i;
+            e0 = pTriangle->getEdge( n );
+            linearInterpolate( z, e0, p );
+            ret = true;
+            break;
+        }
+    }
+    return ret;
+}
+
+bool Contour::isNextTriangleUsed( int ti, int ei ) const
+{
+    //if(getTriangleObject(ti)->used) return false;
+
+    ti = getNextTriangle( ei, ti );
+    if( ti == -1 )
+        return false;
+    else
+        return ( getTriangleObject( ti )->used );
+}
+
+bool Contour::findNextTriangle( double z, int t1, int e1, int& t2, int& e2, DT_Point& p )
+{
+    // 已达到边界
+    if( t1 == -1 ) return false;
+
+    // 对第i个三角形的另外2条边进行检查并插值
+    e2 = getNextEdge( t1, e1 );
+    if( isNextTriangleUsed( t1, e2 ) || !hasContourPoint( z, e2 ) )
+    {
+        e2 = getNextEdge( t1, e2 );
+        if( isNextTriangleUsed( t1, e2 ) || !hasContourPoint( z, e2 ) )
+        {
+            return false;
+        }
+    }
+
+    // 将当前的三角形的标记为已使用
+    getTriangleObject( t1 )->used = true;
+
+    // 将三角形的编号进行转换
+    t2 = getNextTriangle( e2, t1 );
+
+    // 对边e2线性插值
+    linearInterpolate( z, e2, p );
+
+    return true;
+}
+
+bool Contour::findStartTrianlgeTwice( double z, int& t0, int& e0, DT_Point& p )
+{
+    // 第1次搜索边界三角形
+    bool ret = findStartTrianlge( z, t0, e0, p, true );
+    // 如果没有边界三角形可用，则搜索内部三角形
+    if( !ret )
+    {
+        ret = findStartTrianlge( z, t0, e0, p, false );
+    }
+    return ret;
+}
+
+void Contour::traceContour( double zValue, PointArray& cnpts, IntArray& cnpos, IntArray& dirs )
+{
+    // 初始化默认三角形都没有被使用
+    for( int i = 0; i < ( int )taa.size(); i++ )
+    {
+        taa[i]->used = false;
+    }
+
+    // 记录第1个三角形(搜索起点)
+    int t0 = -1, e0 = -1;
+    DT_Point p;
+
+    while( findStartTrianlgeTwice( zValue, t0, e0, p ) )
+    {
+        // 添加搜索开始点
+        PointArray z_cnpts;
+        z_cnpts.push_back( p );
+
+        int t1 = t0, e1 = e0, t2, e2;
+        while( findNextTriangle( zValue, t1, e1, t2, e2, p ) )
+        {
+            t1 = t2;
+            e1 = e2;
+            z_cnpts.push_back( p );
+        }
+
+        // 如果只有一个点，表示追踪等值线失败
+        if( z_cnpts.size() == 1 )
+        {
+            break;
+        }
+
+        // 表示闭合等值线方向(1或-1), 开放等值线为0
+        int dir = 0;
+
+        // 等值线是否闭合(起始边与结束边在一个三角形内)
+        if( isCoedge( t0, t1, e0 ) )
+        {
+            getTriangleObject( t1 )->used = true;
+            z_cnpts.push_back( z_cnpts.front() );
+
+            // 等值线闭合,结束在一个三角形内,两条边共点
+            dir = ( ( zValue > pa[getCoNode( e0, e1 )].z ) ? 1 : -1 );
+        }
+
+        // 复制计算得到的等值点
+        std::copy( z_cnpts.begin(), z_cnpts.end(), std::back_inserter( cnpts ) );
+        // 记录等值线个数
+        cnpos.push_back( z_cnpts.size() );
+        // 记录等值线的方向
+        dirs.push_back( dir );
+    }
+}
+
+// 边界分支
+struct BoundaryEdge
+{
+    int ei;
+    bool used;
+};
+typedef std::vector<BoundaryEdge> BoundaryEdgeArray;
+
+void Contour::searchBoundary( PointArray& bpts, IntArray& bpos )
+{
+    // 记录所有边界分支
+    BoundaryEdgeArray bea;
+    for( int i = 0; i < ( int )eaa.size(); i++ )
+    {
+        if( eaa[i]->isBoundary() )
+        {
+            BoundaryEdge be = {i, false};
+            bea.push_back( be );
+        }
+    }
+    if( bea.empty() ) return;
+
+    // 记录搜索得到的点编号
+    IntArray pia;
+
+    // 前提：边界必然是闭合的
+    // 可能存在多个边界(内外边界)
+    while( true )
+    {
+        // 搜索可用的边界
+        int bi = -1;
+        for( int i = 0; i < ( int )bea.size(); i++ )
+        {
+            BoundaryEdge be = bea[i];
+            if( !be.used )
+            {
+                bi = i;
+                break;
+            }
+        }
+        if( bi == -1 ) break;
+
+        // 记录之前已搜索到的边界点个数
+        int boundPts_num = pia.size();
+
+        DT_Edge e = getEdgeObject( bea[bi].ei )->e;
+        bea[bi].used = true;  // 标记为使用
+
+        pia.push_back( e.s );
+        pia.push_back( e.t );
+
+        int nt = e.t;
+        while( true )
+        {
+            int nbi = -1;
+            for( int i = 0; i < ( int )bea.size(); i++ )
+            {
+                if( bea[i].used ) continue;
+
+                DT_Edge ne = getEdgeObject( bea[i].ei )->e;
+                if( nt == ne.s )
+                {
+                    nt = ne.t;
+                    nbi = i;
+                    break;
+                }
+                else if( nt == ne.t )
+                {
+                    nt = ne.s;
+                    nbi = i;
+                    break;
+                }
+            }
+            if( nbi == -1 ) break;
+
+            bea[nbi].used = true;
+            pia.push_back( nt );
+        }
+
+        int n = pia.size() - boundPts_num;
+        if( n >= 3 )
+        {
+            // 至少是3个点
+            bpos.push_back( n );
+        }
+    }
+
+    // 将点编号转换成实际的点坐标
+    for( int i = 0; i < ( int )pia.size(); i++ )
+    {
+        bpts.push_back( pa[pia[i]] );
+    }
+}
+
+void TraceContours(
+    /* 点 */
+    const PointArray& pts,
+    /* 边 */
+    const EdgeArray& ea,
+    /* 三角形 */
+    const TriangleArray& ta,
+    /* 要追踪的z值 */
+    const DoubleArray& zValues,
+    /* 所有的等值线上的点都放在一个数组 */
+    PointArray& cnpts,
+    /* 记录等值线信息 */
+    ContourArray& cna )
+{
+    Contour cnt( pts, ea, ta );
+    for( int i = 0; i < ( int )zValues.size(); i++ )
+    {
+        PointArray z_cnpts;
+        IntArray z_cnpos;
+        IntArray dirs;
+        cnt.traceContour( zValues[i], z_cnpts, z_cnpos, dirs );
+
+        if( z_cnpos.empty() )
+        {
+            DT_Contour z_contour = {i, 0, 1, 0};
+            cna.push_back( z_contour );
+        }
+        else
+        {
+            for( int j = 0; j < ( int )z_cnpos.size(); j++ )
+            {
+                DT_Contour z_contour = {i, z_cnpos[j], dirs[j], 0};
+                cna.push_back( z_contour );
+            }
+            // 复制计算得到的等值线数据
+            std::copy( z_cnpts.begin(), z_cnpts.end(), std::back_inserter( cnpts ) );
+        }
+    }
+}
+
+static int SearchMaxAreaBoundary( const PointArray& bpts, const IntArray& bpos )
+{
+    double maxArea = -1;
+    int pos = -1;
+    for( int i = 0; i < ( int )bpos.size(); i++ )
+    {
+        int s = 0;
+        for( int j = 0; j < i; j++ )
+        {
+            s += bpos[j];
+        }
+        int t = s + bpos[i];
+
+        PointArray polygon;
+        std::copy( bpts.begin() + s, bpts.begin() + t, std::back_inserter( polygon ) );
+        if( pos == -1 )
+        {
+            pos = i;
+            maxArea = PolygonArea( polygon );
+        }
+        else
+        {
+            double area = PolygonArea( polygon );
+            if( area > maxArea )
+            {
+                pos = i;
+                maxArea = area;
+            }
+        }
+    }
+    return pos;
+}
+
+static void GetSEPos( const IntArray& bpos, int k, int& s, int& t )
+{
+    s = 0;
+    for( int i = 0; i < k; i++ )
+    {
+        s += bpos[i];
+    }
+    t = s + bpos[k];
+}
+
+static void GetOutMostBoundary( const PointArray& all_bpts, const IntArray& all_bpos, PointArray& bpts )
+{
+    // 搜索最大边界(最外围边界)
+    int k = SearchMaxAreaBoundary( all_bpts, all_bpos );
+    if( k != -1 )
+    {
+        int ks = 0, kt = 0;
+        GetSEPos( all_bpos, k, ks, kt );
+        std::copy( all_bpts.begin() + ks, all_bpts.begin() + kt, std::back_inserter( bpts ) );
+    }
+}
+
+void SearchBoundary(
+    /* 点 */
+    const PointArray& pts,
+    /* 边 */
+    const EdgeArray& ea,
+    /* 三角形 */
+    const TriangleArray& ta,
+    /* 所有的边界点都放在一个数组 */
+    PointArray& bpts )
+{
+    // 搜索所有的边界
+    PointArray all_bpts;
+    IntArray all_bpos;
+    Contour cnt( pts, ea, ta );
+    cnt.searchBoundary( all_bpts, all_bpos );
+
+    // 搜索最大外围边界
+    GetOutMostBoundary( all_bpts, all_bpos, bpts );
+}

@@ -1,0 +1,266 @@
+#include "StdAfx.h"
+#include "DataHelper.h"
+#include "DataHelperImpl.h"
+
+#include "MineGE.h"
+#include "DrawHelper.h"
+#include "FieldHelper.h"
+
+#include "../ArxHelper/HelperClass.h"
+
+static bool GetDataObject_Helper( const AcDbObjectId& objId, AcDbObjectId& dObjId )
+{
+    if( objId.isNull() ) return false;
+
+    // 使用ARX提供的事务机制打开图元
+    // 1) 启动事务
+    AcTransaction* pTrans = actrTransactionManager->startTransaction();
+    if( pTrans == 0 ) return false;
+
+    // 2) 打开对象，获取对象指针
+    AcDbObject* pObj;
+    if( Acad::eOk != pTrans->getObject( pObj, objId, AcDb::kForRead ) )
+    {
+        // 打开失败，返回false
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 3) 判断图元的类型
+    bool ret = true;
+    if( pObj->isKindOf( MineGE::desc() ) )
+    {
+        // 3.1) 图元从MineGE类派生
+        // 则获取图元关联的数据对象
+        MineGE* pGE = MineGE::cast( pObj );
+        dObjId = pGE->getDataObject();
+    }
+    else if( pObj->isKindOf( DataObject::desc() ) )
+    {
+        // 3.2) 本身就是数据对象(DataObject)
+        // 则直接复制ID
+        dObjId = objId;
+    }
+    else
+    {
+        // 3.3) 以上两者都不属于，则返回false
+        ret = false;
+    }
+    // 4) 关闭事务
+    actrTransactionManager->endTransaction();
+
+    return ret;
+}
+
+static bool GetPropertyData_Helper( const AcDbObjectId& objId, const CString& fieldName, CString& value )
+{
+    // 使用ARX提供的事务机制打开图元
+    // 1) 启动事务
+    AcTransaction* pTrans = actrTransactionManager->startTransaction();
+    if( pTrans == 0 ) return false;
+
+    // 2) 打开对象，获取对象指针
+    AcDbObject* pObj;
+    if( Acad::eOk != pTrans->getObject( pObj, objId, AcDb::kForRead ) ) // read状态
+    {
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 3) 转换成数据对象指针
+    DataObject* pDO = DataObject::cast( pObj );
+    if( pDO == 0 )
+    {
+        // 不是数据对象，则返回false
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 4) 使用数据对象操作辅助类(DataHelperImpl)获取属性数据
+    DataHelperImpl dh( pDO );
+    bool ret = dh.getPropertyData( fieldName, value );
+
+    // 5) 关闭事务
+    actrTransactionManager->endTransaction();
+
+    return ret;
+}
+
+static bool SetPropertyData_Helper( const AcDbObjectId& objId, const CString& fieldName, const CString& value )
+{
+    // 使用ARX提供的事务机制打开图元
+    // 1) 启动事务
+    AcTransaction* pTrans = actrTransactionManager->startTransaction();
+    if( pTrans == 0 ) return false;
+
+    // 2) 打开对象，获取对象指针
+    AcDbObject* pObj;
+    if( Acad::eOk != pTrans->getObject( pObj, objId, AcDb::kForWrite ) )
+    {
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 3) 转换成数据对象指针
+    DataObject* pDO = DataObject::cast( pObj );
+    if( pDO == 0 )
+    {
+        // 不是数据对象，则返回false
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 4) 使用数据对象操作辅助类(DataHelperImpl)设置属性数据
+    DataHelperImpl dh( pDO );
+    bool ret = dh.setPropertyData( fieldName, value );
+
+    // 5) 关闭事务
+    actrTransactionManager->endTransaction();
+
+    return ret;
+}
+
+static bool CopyPropertyData_Helper( const AcDbObjectId& sourceObjId, const AcDbObjectId& targetObjId )
+{
+    // 使用ARX提供的事务机制打开图元
+    // 1) 启动事务
+    AcTransaction* pTrans = actrTransactionManager->startTransaction();
+    if( pTrans == 0 ) return false;
+
+    // 2) 打开源数据对象，获取对象指针
+    AcDbObject* pObj1;
+    if( Acad::eOk != pTrans->getObject( pObj1, sourceObjId, AcDb::kForWrite ) )
+    {
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 3) 打开目标数据对象，获取对象指针
+    AcDbObject* pObj2;
+    if( Acad::eOk != pTrans->getObject( pObj2, targetObjId, AcDb::kForWrite ) )
+    {
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 4) 转换成数据对象指针(源数据对象指针)
+    DataObject* pDO1 = DataObject::cast( pObj1 );
+    if( pDO1 == 0 )
+    {
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 5) 转换成数据对象指针(目标数据对象指针)
+    DataObject* pDO2 = DataObject::cast( pObj2 );
+    if( pDO2 == 0 )
+    {
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+
+    // 6) 判断两者类型名称是否匹配
+    if( pDO1->getType() != pDO2->getType() )
+    {
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+    // 测试用
+    //acutPrintf(_T("source:%s \t target:%s\n"), pObj1->isA()->name(), pObj2->isA()->name());
+
+    // 7) 复制数据(从源数据对象-->目标数据对象)
+    AcStringArray values;
+    pDO1->getAllData( values ); // 获取所有数据
+    pDO2->setAllData( values ); // 交换数据
+
+    // 8) 关闭事务
+    actrTransactionManager->endTransaction();
+
+    return true;
+}
+
+bool DataHelper::GetDataObject( const AcDbObjectId& objId, AcDbObjectId& dObjId )
+{
+    // 获取数据对象
+    return GetDataObject_Helper( objId, dObjId );
+}
+
+bool DataHelper::IsDataObject( const AcDbObjectId& objId )
+{
+    return ( !objId.isNull() &&
+             ArxDataTool::IsEqualType( _T( "DataObject" ), objId, false ) );
+}
+
+bool DataHelper::GetTypeName( const AcDbObjectId& objId, CString& type )
+{
+    AcTransaction* pTrans = actrTransactionManager->startTransaction();
+    if( pTrans == 0 ) return false;
+
+    AcDbObject* pObj;
+    if( Acad::eOk != pTrans->getObject( pObj, objId, AcDb::kForRead ) )
+    {
+        actrTransactionManager->abortTransaction();
+        return false;
+    }
+    bool ret = true;
+    if( pObj->isKindOf( MineGE::desc() ) )
+    {
+        MineGE* pGE = MineGE::cast( pObj );
+        type = pGE->getTypeName();
+    }
+    else if( pObj->isKindOf( DataObject::desc() ) )
+    {
+        DataObject* pDO = DataObject::cast( pObj );
+        type = pDO->getType();
+    }
+    else
+    {
+        ret = false;
+    }
+    actrTransactionManager->endTransaction();
+
+    return ret;
+}
+
+bool DataHelper::GetPropertyData( const AcDbObjectId& objId, const CString& fieldName, CString& value )
+{
+    if( objId.isNull() ) return false;
+
+    // 获取数据对象
+    AcDbObjectId dObjId;
+    if( !DataHelper::GetDataObject( objId, dObjId ) ) return false;
+
+    // 获取属性数据
+    return GetPropertyData_Helper( dObjId, fieldName, value );
+}
+
+bool DataHelper::SetPropertyData( const AcDbObjectId& objId, const CString& fieldName, const CString& value )
+{
+    if( objId.isNull() ) return false;
+
+    // 获取数据对象
+    AcDbObjectId dObjId;
+    if( !DataHelper::GetDataObject( objId, dObjId ) ) return false;
+
+    // 设置属性数据
+    return SetPropertyData_Helper( dObjId, fieldName, value );
+}
+
+bool DataHelper::CopyPropertyData( const AcDbObjectId& sourceObjId, const AcDbObjectId& targetObjId )
+{
+    if( sourceObjId.isNull() ) return false;
+    if( targetObjId.isNull() ) return false;
+
+    // 获取源数据对象
+    AcDbObjectId dSourceObjId;
+    if( !DataHelper::GetDataObject( sourceObjId, dSourceObjId ) ) return false;
+    if( dSourceObjId.isNull() ) return false;
+
+    // 获取目标数据对象
+    AcDbObjectId dTargetObjId;
+    if( !DataHelper::GetDataObject( targetObjId, dTargetObjId ) ) return false;
+    if( dTargetObjId.isNull() ) return false;
+
+    // 将数据从源数据对象复制到目标数据对象
+    return CopyPropertyData_Helper( dSourceObjId, dTargetObjId );
+}

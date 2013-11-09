@@ -1,0 +1,80 @@
+#include "stdafx.h"
+#include "TestDlg5.h"
+
+#include <cmath>
+
+IMPLEMENT_DYNAMIC( TestDlg5, CDialog )
+
+TestDlg5::TestDlg5( CWnd* pParent /*=NULL*/ )
+    : CDialog( TestDlg5::IDD, pParent )
+    , a0( 183.886968 )
+    , a1( -2.258268 )
+    , a2( 0.060646 )
+    , a3( -0.000518 )
+    , a4( 0.000006 )
+    , a5( 0 )
+{
+
+}
+
+TestDlg5::~TestDlg5()
+{
+}
+
+void TestDlg5::DoDataExchange( CDataExchange* pDX )
+{
+    CDialog::DoDataExchange( pDX );
+
+    DDX_Control( pDX, IDC_CHARTCTRL, m_ChartCtrl );
+    DDX_Text( pDX, IDC_EDIT1, a0 );
+    DDX_Text( pDX, IDC_EDIT2, a1 );
+    DDX_Text( pDX, IDC_EDIT5, a2 );
+    DDX_Text( pDX, IDC_EDIT6, a3 );
+    DDX_Text( pDX, IDC_EDIT7, a4 );
+    DDX_Text( pDX, IDC_EDIT8, a5 );
+}
+
+
+BEGIN_MESSAGE_MAP( TestDlg5, CDialog )
+END_MESSAGE_MAP()
+
+
+void TestDlg5::BuildXYValues( double Q_min, double Q_max, int n, double* XValues, double* YValues )
+{
+    double dq = ( Q_max - Q_min ) / n;
+
+    for( int i = 0; i < n; i++ )
+    {
+        XValues[i] = ( Q_min + i * dq );
+    }
+
+    for( int i = 0; i < 10; i++ )
+    {
+        YValues[i] = H( XValues[i] );
+    }
+}
+
+BOOL TestDlg5::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+
+    //CChartLineSerie* m_pLineSeries = m_ChartCtrl.CreateLineSerie();
+
+    //double* XValues = new double[10];
+    //double* YValues = new double[10];
+    //BuildXYValues(-10, 150, 10, XValues, YValues);
+    //
+    //m_pLineSeries->SetPoints(XValues,YValues,10);
+
+    //delete [] XValues;
+    //delete [] YValues;
+
+    UpdateData( FALSE );
+
+    return TRUE;
+}
+
+double TestDlg5::H( double Q )
+{
+    return a0 + a1 * Q + a2 * pow( Q, 2 ) + a3 * pow( Q, 3 ) + a4 * pow( Q, 4 ) + a5 * pow( Q, 5 );
+}

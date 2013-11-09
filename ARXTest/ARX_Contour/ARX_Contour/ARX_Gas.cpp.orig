@@ -1,0 +1,108 @@
+#include "StdAfx.h"
+#include "ARX_Gas.h"
+
+#include "../GasGE/GasGeologyGE.h"
+#include "../GasGE/MineBoundary.h"
+
+#include "../ArxHelper/HelperClass.h"
+#include "../MineGE/HelperClass.h"
+#include <set>
+
+void GetEntityLayers(const CString& type, AcStringArray& layers)
+{
+	AcDbObjectIdArray objIds;
+	ArxDataTool::GetEntsByType(type, objIds);
+	if(objIds.isEmpty()) return;
+
+	typedef std::set<CString> StringSet;
+	StringSet ss;
+
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcDbObject* pObj;
+		if(Acad::eOk != pTrans->getObject(pObj, objIds[i], AcDb::kForRead)) continue;
+
+		AcDbEntity* pEnt = AcDbEntity::cast(pObj);
+		if(pEnt != 0)
+		{
+			CString layer = pEnt->layer();
+			if(ss.find(layer) == ss.end())
+			{
+				ss.insert(layer);
+			}
+		}
+	}
+	actrTransactionManager->endTransaction();
+
+	for(StringSet::iterator itr=ss.begin(); itr!=ss.end();itr++)
+	{
+		layers.append(*itr);
+	}
+}
+
+void GetInsertPoints(const AcDbObjectIdArray& objIds, AcGePoint3dArray& pts)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcDbObject* pObj;
+		pTrans->getObject(pObj, objIds[i], AcDb::kForRead);
+
+		GasGeologyGE* pGE = GasGeologyGE::cast(pObj);
+		pts.append(pGE->getInsertPt());
+	}
+
+	actrTransactionManager->endTransaction();	
+}
+
+void GetGasDatas(GasContourType gas_type, AcGePoint3dArray& datas)
+{
+	CString type = GetGasTypeName(gas_type);
+
+	AcDbObjectIdArray objIds;
+	ArxDataTool::GetEntsByType(type, objIds);
+
+	GetInsertPoints(objIds, datas);
+
+	int n = objIds.length();
+	for(int i=0;i<n;i++)
+	{
+		CString field = GetGasFieldName(gas_type);
+		CString value;
+		DataHelper::GetPropertyData(objIds[i], field, value);
+
+		double d = 0;
+		ArxUtilHelper::StringToDouble(value, d);
+
+		datas[i].z = d;
+
+		//acutPrintf(_T("\n%.3f"), d);
+	}
+}
+
+void GetBoundaryPoints(const AcDbObjectId& objId, AcGePoint3dArray& pts)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+
+	AcDbObject* pObj;
+	pTrans->getObject(pObj, objId, AcDb::kForRead);
+
+	MineBoundary* pGE = MineBoundary::cast(pObj);
+	pGE->getControlPoints(pts);
+
+	actrTransactionManager->endTransaction();
+}
+
+void GetBoundaryPoints(AcGePoint3dArray& pts)
+{
+	// 获取井田边界图元(保证只有一个井田边界图元)
+	AcDbObjectIdArray objIds;
+	ArxDataTool::GetEntsByType(_T("MineBoundary"), objIds);
+	if(objIds.isEmpty()) return;
+
+	// 获取边界坐标数据
+	GetBoundaryPoints(objIds[0], pts);
+}

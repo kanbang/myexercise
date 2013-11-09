@@ -1,0 +1,55 @@
+SmallGOP		突出煤量
+SmallGOP		涌出瓦斯总量
+SmallGOP		标高
+SmallGOP		突出年月日
+
+MidGOP		突出煤量
+MidGOP		涌出瓦斯总量
+MidGOP		标高
+MidGOP		突出年月日
+
+LargeGOP		突出煤量
+LargeGOP		涌出瓦斯总量
+LargeGOP		标高
+LargeGOP		突出年月日
+
+LargerGOP	突出煤量
+LargerGOP	涌出瓦斯总量
+LargerGOP	标高
+LargerGOP	突出年月日
+
+GCP	瓦斯含量
+GCP	测点标高
+GCP	埋深
+
+GPP	瓦斯压力值
+GPP	测点标高
+GPP	埋深
+
+PPP	突出煤岩量
+PPP	涌出瓦斯量
+PPP	标高
+PPP	发生年月
+
+CSDCI	瓦斯放散初速度
+CSDCI	煤的坚固性系数
+
+WDCI1	钻屑解吸指标
+WDCI1	钻孔最大钻屑量
+
+WDCI2	钻孔最大瓦斯涌出初速度
+WDCI2	钻孔最大钻屑量
+WDCI2	R值指标
+
+WGFP	绝对瓦斯涌出量
+WGFP	相对瓦斯涌出量
+WGFP	工作面日产量
+WGFP	回采年月
+
+TGFP	绝对瓦斯涌出量
+TGFP	掘进年月
+
+CDH	孔号
+CDH	地面标高
+CDH	煤层底板标高
+CDH	煤厚

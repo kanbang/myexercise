@@ -1,0 +1,28 @@
+在图元设计的过程中通常需要考虑图元之间的依赖关系
+
+例1：风门必须附着在巷道上，风流方向同样也是如此
+例2：掘进工作面必须指定一个导风巷道
+
+等等...
+
+通常的做法在是类的定义中增加一个id成员变量，例如
+AcDbObjectId m_objId;
+
+为了保证cad的复制等操作(deepClone和wblock)能够正常运行，且开发人员不需要
+做额外的工作，那么在
+dwgInFields()和dwgOutFileds()应该使用hard pointer
+
+例如
+// dwgInFileds()
+filer->readHardPointerId(m_objId);
+
+// dwgOutFields()
+filer->writeHardPointerId(m_objId);
+
+原因：
+1）deepClone使用AcDbDwgDeepCloneFiler
+     wblock使用AcDbDwgWBlockCloneFiler
+其中deepClone能够处理所有的owner ship关系
+而wblock能够处理所有的hard关系(hard owner和hard poiner)
+
+2）待续...

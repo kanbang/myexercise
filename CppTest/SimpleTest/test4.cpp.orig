@@ -1,0 +1,27 @@
+#include <iostream>
+using namespace std;
+
+enum ShaftFunctionProperty
+{
+    SFP_REPAIR                 = 0x0001,     // 是否有梯子间或修理中
+    SFP_LIFT_STAFF             = 0x0002,     // 是否升降人员
+    SFP_LIFT_MATERIAL          = 0x0004,     // 是否提升物料
+    SFP_SKIP_HOIST             = 0X0008,     // 箕斗提升
+    SFP_BELT_CONVEY            = 0X0010,     // 带式输送
+    SFP_CLOSE_MEASURES         = 0X0020,     // 完善的封闭措施
+    SFP_DUST_PROOF             = 0X0040,     // 可靠防尘措施
+    SFP_METHANE_INTERRUPT      = 0X0080,     // 装设甲烷断电仪
+    SFP_FIRE_ALARM             = 0X0100,     // 装设自动报警灭火装置
+    SFP_FIRE_FIGHTING_PIPELINE = 0X0200,     // 装设敷设消防管路
+};
+
+int main()
+{
+    int sfp = (SFP_REPAIR | SFP_LIFT_STAFF);
+    int ret = (sfp & SFP_REPAIR);
+    cout<<ret<<endl;
+
+    sfp = 0;
+    cout<<sfp<<endl;
+    return 0;
+}

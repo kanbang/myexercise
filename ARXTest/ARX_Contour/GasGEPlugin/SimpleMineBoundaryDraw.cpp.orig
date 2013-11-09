@@ -1,0 +1,197 @@
+#include "StdAfx.h"
+#include "SimpleMineBoundaryDraw.h"
+
+#include "DrawTool.h"
+
+static void DrawCross( AcGiWorldDraw *mode, const AcGePoint3d& pt, double angle, double radius, double lineWidth )
+{
+	AcGeVector3d v(AcGeVector3d::kXAxis);
+	v.rotateBy(angle, AcGeVector3d::kZAxis);
+	v*=radius;
+
+	for(int i=0;i<4;i++)
+	{
+		/*
+		AcGePoint3dArray pts;
+		pts.append(pt);
+		pts.append(pt + v);
+		mode->geometry().worldLine(pts.asArrayPtr());
+		*/
+		DrawPolyLine(mode, pt, pt+v, lineWidth);
+
+		v.rotateBy(PI/2, AcGeVector3d::kZAxis);
+	}
+}
+
+ACRX_CONS_DEFINE_MEMBERS (SimpleMineBoundaryDraw, MineGEDraw, 1)
+
+SimpleMineBoundaryDraw::SimpleMineBoundaryDraw () : MineGEDraw () {
+}
+
+SimpleMineBoundaryDraw::~SimpleMineBoundaryDraw () {
+}
+
+void SimpleMineBoundaryDraw::setAllExtraParamsToDefault()
+{
+	m_length= 80;
+	m_space = 70;
+	m_lineWidth = 2;
+}
+
+void SimpleMineBoundaryDraw::configExtraParams()
+{
+
+}
+
+void SimpleMineBoundaryDraw::updateExtraParams()
+{
+
+}
+
+void SimpleMineBoundaryDraw::writeKeyParam( DrawParamWriter& writer )
+{
+	int len = m_pts.length();
+	writer.writeInt(len);
+	for(int i=0;i<len;i++)
+	{
+		writer.writePoint(m_pts[i]);
+	}
+}
+
+void SimpleMineBoundaryDraw::readKeyParam( DrawParamReader& reader )
+{
+	m_pts.removeAll();
+
+	int len = 0;
+	reader.readInt(len);
+	for(int i=0;i<len;i++)
+	{
+		AcGePoint3d pt;
+		reader.readPoint(pt);
+		m_pts.append(pt);
+	}
+}
+
+void SimpleMineBoundaryDraw::readExtraParam( DrawParamReader& reader )
+{
+	reader.readDouble(m_length);
+	reader.readDouble(m_space);
+	reader.readDouble(m_lineWidth);
+}
+
+void SimpleMineBoundaryDraw::writeExtraParam( DrawParamWriter& writer )
+{
+	writer.writeDouble(m_length);
+	writer.writeDouble(m_space);
+	writer.writeDouble(m_lineWidth);
+}
+
+static void DrawSegment(AcGiWorldDraw* mode, const AcGePoint3d& spt, const AcGeVector3d& v, double length, double lineWidth)
+{
+	AcGePoint3d ept = spt+v*length;
+	DrawPolyLine(mode, spt, ept, lineWidth);
+}
+
+void SimpleMineBoundaryDraw::drawSegment( AcGiWorldDraw* mode, const AcGePoint3d& spt, const AcGePoint3d& ept )
+{
+	AcGeVector3d v = ept - spt;
+	int n = (int)((v.length())/(m_length+m_space));
+	//acutPrintf(_T("\n可绘制的个数:%d"), n);
+	v.normalize();
+
+	double angle = v.angleTo(AcGeVector3d::kXAxis, -AcGeVector3d::kZAxis);
+
+	AcGePoint3d pt = spt;
+	double half_space = m_space*0.5;
+	double c = 0.5;
+	for(int i=0;i<n;i++)
+	{
+		DrawSegment(mode, pt, v, m_length, m_lineWidth);
+		DrawCross(mode, pt+v*(m_length+half_space), angle, half_space*c, m_lineWidth);
+		pt = pt+v*(m_length+m_space);
+	}
+	double ll = (ept - pt).length();
+	if(ll>m_length*0.5) // 如果有长度的50%，则绘制一小段
+	{
+		DrawSegment(mode, pt, v, ll, m_lineWidth);
+	}	
+}
+
+Adesk::Boolean SimpleMineBoundaryDraw::subWorldDraw (AcGiWorldDraw *mode) {
+	assertReadEnabled () ;
+
+	int n = m_pts.length();
+	if(n<2) return Adesk::kTrue;
+
+	for(int i=0;i<n;i++)
+	{
+		drawSegment(mode, m_pts[i%n], m_pts[(i+1)%n]);
+	}
+	return Adesk::kTrue;
+}
+
+Acad::ErrorStatus SimpleMineBoundaryDraw::subTransformBy( const AcGeMatrix3d & xform )
+{
+	int len = m_pts.length();
+	for(int i=0;i<len;i++)
+	{
+		m_pts[i].transformBy(xform);
+	}
+	return Acad::eOk;
+}
+
+Acad::ErrorStatus SimpleMineBoundaryDraw::subGetOsnapPoints (
+	AcDb::OsnapMode osnapMode,
+	int gsSelectionMark,
+	const AcGePoint3d &pickPoint,
+	const AcGePoint3d &lastPoint,
+	const AcGeMatrix3d &viewXform,
+	AcGePoint3dArray &snapPoints,
+	AcDbIntArray &geomIds) const
+{
+	assertReadEnabled () ;
+	// 只捕捉1种类型的点：端点
+	if(osnapMode != AcDb::kOsMaskEnd) return Acad::eOk;
+
+	if(osnapMode == AcDb::kOsMaskEnd)
+	{
+		int len = m_pts.length();
+		for(int i=0;i<len;i++)
+		{
+			snapPoints.append(m_pts[i]);
+		}
+	}
+
+	return Acad::eOk;
+}
+
+//- Grip points protocol
+Acad::ErrorStatus SimpleMineBoundaryDraw::subGetGripPoints (
+	AcGePoint3dArray &gripPoints, AcDbIntArray &osnapModes, AcDbIntArray &geomIds) const {
+	assertReadEnabled () ;
+	
+	int len = m_pts.length();
+	for(int i=0;i<len;i++)
+	{
+		gripPoints.append(m_pts[i]);
+	}
+
+	return Acad::eOk;
+}
+
+Acad::ErrorStatus SimpleMineBoundaryDraw::subMoveGripPointsAt (const AcDbIntArray &indices, const AcGeVector3d &offset) {
+	assertWriteEnabled () ;
+
+	for(int i=0; i<indices.length(); i++) 
+	{
+		int idx = indices.at(i);
+		
+		AcGePoint3d pt = m_pts[idx] + offset;
+		if(!m_pts.contains(pt))
+		{
+			m_pts[idx] = pt;
+		}
+	}
+	return Acad::eOk;
+}
+

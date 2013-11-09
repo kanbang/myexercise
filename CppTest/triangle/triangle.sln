@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "triangle", "triangle\triangle.vcproj", "{FE8DF32C-7EF2-4264-9EE3-ED0622D6267D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Contour", "Contour\Contour.vcproj", "{10927C41-65B4-4953-A569-7869C75253EE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ContourTest", "ContourTest\ContourTest.vcproj", "{78DEF717-A3C8-4007-9DD2-D3770683AB85}"
+	ProjectSection(ProjectDependencies) = postProject
+		{10927C41-65B4-4953-A569-7869C75253EE} = {10927C41-65B4-4953-A569-7869C75253EE}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FE8DF32C-7EF2-4264-9EE3-ED0622D6267D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{FE8DF32C-7EF2-4264-9EE3-ED0622D6267D}.Debug|Win32.Build.0 = Debug|Win32
+		{FE8DF32C-7EF2-4264-9EE3-ED0622D6267D}.Release|Win32.ActiveCfg = Release|Win32
+		{FE8DF32C-7EF2-4264-9EE3-ED0622D6267D}.Release|Win32.Build.0 = Release|Win32
+		{10927C41-65B4-4953-A569-7869C75253EE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{10927C41-65B4-4953-A569-7869C75253EE}.Debug|Win32.Build.0 = Debug|Win32
+		{10927C41-65B4-4953-A569-7869C75253EE}.Release|Win32.ActiveCfg = Release|Win32
+		{10927C41-65B4-4953-A569-7869C75253EE}.Release|Win32.Build.0 = Release|Win32
+		{78DEF717-A3C8-4007-9DD2-D3770683AB85}.Debug|Win32.ActiveCfg = Debug|Win32
+		{78DEF717-A3C8-4007-9DD2-D3770683AB85}.Debug|Win32.Build.0 = Debug|Win32
+		{78DEF717-A3C8-4007-9DD2-D3770683AB85}.Release|Win32.ActiveCfg = Release|Win32
+		{78DEF717-A3C8-4007-9DD2-D3770683AB85}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

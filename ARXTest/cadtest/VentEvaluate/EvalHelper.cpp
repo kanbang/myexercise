@@ -1,0 +1,57 @@
+#include "stdafx.h"
+
+#include "EvalHelper.h"
+
+// 读取office2003的安装目录
+bool GetWordExePathFromRegistry( CString& path )
+{
+    long lRet = 0;
+    CString strRegOffice = _T( "Software\\Microsoft\\Office\\11.0\\Word\\InstallRoot" ); // office03版本
+    HKEY   hResult;
+    lRet = ::RegOpenKeyEx( HKEY_LOCAL_MACHINE, strRegOffice, 0, KEY_QUERY_VALUE, &hResult );
+    if( lRet == ERROR_SUCCESS )
+    {
+        DWORD      WordType =  REG_SZ;
+        DWORD      WordData =  100;
+        LPTSTR     KeyByte[1024];
+        lRet = ::RegQueryValueEx( hResult, ( _T( "Path" ) ), NULL, &WordType, ( LPBYTE )KeyByte, &WordData );
+        if( lRet == ERROR_SUCCESS )
+        {
+            path = ( LPTSTR )KeyByte;
+            path.Append( _T( "word.exe" ) ); // 合并得到word.exe路径
+        }
+        RegCloseKey( hResult );
+    }
+    return ( lRet == ERROR_SUCCESS );
+}
+
+// 使用ShellExecute打开文档
+void OpenWordDocument( const CString& filePath )
+{
+    //CString filePath = _T("C:\\Users\\anheihb03dlj\\Desktop\\《煤矿安全规程》103条需风量计算方法.doc");
+    ShellExecute( NULL, _T( "open" ), filePath, NULL, NULL, SW_SHOWNORMAL );
+}
+
+CString String2Time( const CString& v )
+{
+    // 如果字符串为空，则使用当前时间
+    COleDateTime dt;
+    if( v.GetLength() == 0 )
+    {
+        dt = COleDateTime::GetCurrentTime();
+    }
+    else
+    {
+        dt.ParseDateTime( v );
+    }
+    CString dtStr;
+    dtStr.Format( _T( "%d年%d月%d日" ), dt.GetYear(), dt.GetMonth(), dt.GetDay() );
+    return dtStr;
+}
+
+// 在access中: -1表示真，0表示假
+// 需要转换成bool类型
+int Access2Bool( int value )
+{
+    return -1 * value;
+}

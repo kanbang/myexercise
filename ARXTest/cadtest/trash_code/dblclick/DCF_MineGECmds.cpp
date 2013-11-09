@@ -1,0 +1,12 @@
+#include "stdafx.h"
+
+#include "PropertyDataDlgHelper.h"
+#include "../MineGE/DoubleClickCallBack.h"
+
+void DCF_MineGECmds( const AcDbObjectId& objId )
+{
+    // 显示属性对话框
+    PropertyDataDlgHelper::DisplayPropertyDataDlg( objId );
+}
+
+REG_DOUBLE_CLICK_FUNC( DCF_MineGECmds )

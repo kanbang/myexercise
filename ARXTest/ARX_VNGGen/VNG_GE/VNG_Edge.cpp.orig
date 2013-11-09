@@ -1,0 +1,242 @@
+#include "StdAfx.h"
+
+#include "VNG_Edge.h"
+#include "DrawTool.h"
+
+Adesk::UInt32 VNG_Edge::kCurrentVersionNumber =1 ;
+
+ACRX_DXF_DEFINE_MEMBERS (
+	VNG_Edge, VNG_GE,
+	AcDb::kDHL_CURRENT, AcDb::kMReleaseCurrent, 
+	AcDbProxyEntity::kNoOperation, 
+	分支, ARX_VNG_APP
+)
+
+VNG_Edge::VNG_Edge () : VNG_GE ()
+{
+}
+
+VNG_Edge::~VNG_Edge () 
+{
+}
+
+Acad::ErrorStatus VNG_Edge::dwgOutFields (AcDbDwgFiler *pFiler) const {
+	assertReadEnabled () ;
+	//----- Save parent class information first.
+	Acad::ErrorStatus es =VNG_GE::dwgOutFields (pFiler) ;
+	if ( es != Acad::eOk )
+		return (es) ;
+	//----- Object version number needs to be saved first
+	if ( (es =pFiler->writeUInt32 (VNG_Edge::kCurrentVersionNumber)) != Acad::eOk )
+		return (es) ;
+
+	pFiler->writePoint3d(m_spt);
+	pFiler->writePoint3d(m_ept);
+	pFiler->writePoint3d(m_pt);
+
+	pFiler->writeDouble(m_arrowWidth);
+	pFiler->writeDouble(m_arrowLength);
+
+	pFiler->writeBool(m_needEdge);
+	pFiler->writePoint3d(m_tpt);
+	pFiler->writeDouble(m_textHeight);
+
+	AcString str = m_name;
+	pFiler->writeString(str);
+
+	return (pFiler->filerStatus ()) ;
+}
+
+Acad::ErrorStatus VNG_Edge::dwgInFields (AcDbDwgFiler *pFiler) {
+	assertWriteEnabled () ;
+	//----- Read parent class information first.
+	Acad::ErrorStatus es =VNG_GE::dwgInFields (pFiler) ;
+	if ( es != Acad::eOk )
+		return (es) ;
+	//----- Object version number needs to be read first
+	Adesk::UInt32 version =0 ;
+	if ( (es =pFiler->readUInt32 (&version)) != Acad::eOk )
+		return (es) ;
+	if ( version > VNG_Edge::kCurrentVersionNumber )
+		return (Acad::eMakeMeProxy) ;
+
+	pFiler->readPoint3d(&m_spt);
+	pFiler->readPoint3d(&m_ept);
+	pFiler->readPoint3d(&m_pt);
+
+	pFiler->readDouble(&m_arrowWidth);
+	pFiler->readDouble(&m_arrowLength);
+
+	pFiler->readBool(&m_needEdge);
+	pFiler->readPoint3d(&m_tpt);
+	pFiler->readDouble(&m_textHeight);
+
+	AcString str;
+	pFiler->readString(str);
+	m_name = str.kACharPtr();
+
+	return (pFiler->filerStatus ()) ;
+}
+
+Adesk::Boolean VNG_Edge::subWorldDraw (AcGiWorldDraw *mode) 
+{
+	assertReadEnabled () ;
+	
+	AcGiSubEntityTraits& traits = mode->subEntityTraits();
+	Adesk::UInt16 cl = traits.color();
+	if(m_id == -1)
+	{
+		traits.setColor(2); // 虚分支用黄色高亮
+	}
+	
+	// 绘制分支
+	DrawArc(mode, m_spt, m_pt, m_ept, false);
+
+	double angle = CacArcAngle(m_spt, m_ept, m_pt, m_arrowLength);
+
+	// 绘制箭头
+	DrawArrow(mode, m_pt, angle, m_arrowWidth, m_arrowLength);
+
+	if(m_needEdge)
+	{
+		// 绘制分支编号
+		/*CString idStr;
+		idStr.Format(_T("%d"), m_id);
+		CString str;
+		str.Format(_T("e%s"), MakeLowerText(idStr));
+		DrawMText(mode, m_tpt, 0, str, m_textHeight);*/
+
+		// 绘制名称标注
+		if(m_name.GetLength() > 0)
+		{
+			AcGeVector3d v(AcGeVector3d::kXAxis);
+			v.rotateBy(angle+PI*0.5, AcGeVector3d::kZAxis);
+			DrawMText(mode, m_tpt/*m_pt+v*/, 0/*angle*/, m_name, m_textHeight, AcDbMText::kMiddleLeft);
+		}
+	}
+
+	// 复原颜色
+	traits.setColor(cl);
+
+	return Adesk::kTrue;
+	//return (VNG_GE::subWorldDraw (mode)) ;
+}
+
+Acad::ErrorStatus VNG_Edge::subTransformBy( const AcGeMatrix3d & xform )
+{
+	// 构造弧线，进行变换
+	m_spt.transformBy(xform);
+	m_ept.transformBy(xform);
+	m_pt.transformBy(xform);
+
+	AcGeVector3d v(AcGeVector3d::kXAxis);
+	v.transformBy(xform);
+
+	if(m_needEdge)
+	{
+		m_tpt.transformBy(xform);
+	}	
+
+	return Acad::eOk;
+}
+
+Acad::ErrorStatus VNG_Edge::subGetOsnapPoints (
+	AcDb::OsnapMode osnapMode,
+	int gsSelectionMark,
+	const AcGePoint3d &pickPoint,
+	const AcGePoint3d &lastPoint,
+	const AcGeMatrix3d &viewXform,
+	AcGePoint3dArray &snapPoints,
+	AcDbIntArray &geomIds) const
+{
+	assertReadEnabled () ;
+
+	// 弧线的捕捉点
+	if(osnapMode == AcDb::kOsModeEnd)
+	{
+		snapPoints.append(m_spt);
+		snapPoints.append(m_ept);
+		snapPoints.append(m_pt);
+		if(m_needEdge)
+		{
+			snapPoints.append(m_tpt);
+		}
+	}
+
+	return Acad::eOk;
+}
+
+Acad::ErrorStatus VNG_Edge::subGetGripPoints(
+	AcGePoint3dArray &gripPoints, 
+	AcDbIntArray &osnapModes, 
+	AcDbIntArray &geomIds) const 
+{
+	assertReadEnabled () ;
+
+	gripPoints.append(m_spt);
+	gripPoints.append(m_ept);
+	gripPoints.append(m_pt);
+
+	if(m_needEdge)
+	{
+		gripPoints.append(m_tpt);
+	}
+
+	return Acad::eOk;
+}
+
+Acad::ErrorStatus VNG_Edge::subMoveGripPointsAt (const AcDbIntArray &indices, const AcGeVector3d &offset) 
+{
+	assertWriteEnabled () ;
+
+	int n = indices.length();
+	for(int i=0;i<n;i++)
+	{
+		int idx = indices[i];
+		if(idx == 0)
+		{
+			m_spt += offset;
+		}
+		else if(idx == 1)
+		{
+			m_ept += offset;
+		}
+		else if(idx == 2)
+		{
+			m_pt += offset;
+		}
+		else if(m_needEdge && idx == 3)
+		{
+			AcGePoint3d tpt = m_tpt;
+			tpt += offset;
+			if(tpt != m_pt && tpt != m_spt && tpt != m_ept)			
+			{
+				m_tpt = tpt;
+			}
+		}
+	}
+
+	return Acad::eOk;
+}
+
+void VNG_Edge::setParam( double m_arrowWidth, double m_arrowLength, double m_edgeTextHeight, double m_needEdge )
+{
+	assertWriteEnabled () ;
+	this->m_arrowWidth = m_arrowWidth;
+	this->m_arrowLength = m_arrowLength;
+	this->m_textHeight = m_edgeTextHeight;
+	this->m_needEdge = m_needEdge;
+}
+
+void VNG_Edge::setName( const CString& name )
+{
+	assertWriteEnabled () ;
+	if(name.GetLength() == 0)
+	{
+		this->m_name = _T("NULL");
+	}
+	else
+	{
+		this->m_name = name;
+	}
+}

@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "QtOgre", "QtOgre\QtOgre.vcproj", "{C8BD0979-7BB1-4AC0-BD77-6B994F685F22}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Hello", "Hello\Hello.vcproj", "{259C8FB5-84AB-4AE0-8CC8-0E96C474017A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C8BD0979-7BB1-4AC0-BD77-6B994F685F22}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C8BD0979-7BB1-4AC0-BD77-6B994F685F22}.Debug|Win32.Build.0 = Debug|Win32
+		{C8BD0979-7BB1-4AC0-BD77-6B994F685F22}.Release|Win32.ActiveCfg = Release|Win32
+		{C8BD0979-7BB1-4AC0-BD77-6B994F685F22}.Release|Win32.Build.0 = Release|Win32
+		{259C8FB5-84AB-4AE0-8CC8-0E96C474017A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{259C8FB5-84AB-4AE0-8CC8-0E96C474017A}.Debug|Win32.Build.0 = Debug|Win32
+		{259C8FB5-84AB-4AE0-8CC8-0E96C474017A}.Release|Win32.ActiveCfg = Release|Win32
+		{259C8FB5-84AB-4AE0-8CC8-0E96C474017A}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

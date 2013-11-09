@@ -1,0 +1,6 @@
+/*
+ * 经过测试发现，如果将修改/还原系统变量的代码放在kLoadAppMsg和kUnloadAppMsg中
+ * 直接关闭cad时会出现内存访问错误(调试可以看出来，而非调试状态cad会发出错误声音)
+ * 问题的根源在与acedSetVar()函数，具体原因尚不明确
+ * 最后将修改/还原系统变量的代码封装到SysVarHelper类中，并放在kLoadDwgMsg和kUnloadDwgMsg中
+ */

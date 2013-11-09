@@ -1,0 +1,40 @@
+#include "StdAfx.h"
+#include "ToolBarHelper.h"
+
+#include "AppToolBar.h"
+
+ToolBarHelper::ToolBarHelper(void)
+{
+	m_pToolBarImpl = new AppToolBar();
+}
+
+ToolBarHelper::~ToolBarHelper(void)
+{
+	delete m_pToolBarImpl;
+	m_pToolBarImpl = 0;
+}
+
+void ToolBarHelper::AddToolBar( const TCHAR* toolBarName )
+{
+	m_pToolBarImpl->AddToolBar(toolBarName);
+}
+
+void ToolBarHelper::AddToolButton( const TCHAR* name, const TCHAR* command, const TCHAR* help /*= NULL*/, const TCHAR* bmp/*= NULL*/ )
+{
+	m_pToolBarImpl->AddToolButton(name, command, help, bmp);
+}
+
+void ToolBarHelper::AddSeparator()
+{
+	m_pToolBarImpl->AddSeparator();
+}
+
+void ToolBarHelper::CreateToolBars()
+{
+	m_pToolBarImpl->CreateToolBars();
+}
+
+void ToolBarHelper::CleanUpToolBars()
+{
+	AppToolBar::CleanUpToolBars();
+}

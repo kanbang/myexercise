@@ -1,0 +1,1142 @@
+#include "stdafx.h"
+#include "NormalEvalSettingDlg.h"
+#include "QuestionNaireDlg.h"
+
+#include "DataBaseFieldNames.h"
+#include "TestHelper.h"
+#include "IniFile.h"
+
+#include "../EvalBase/EvalService.h"
+#include "../DaoHelper/TableCreator.h"
+#include "../DaoHelper/DataWriter.h"
+using namespace PJ;
+
+#include "../MineGE/DataListHelper.h"
+#include "../minege/DataHelper.h"
+//#include "../MineGE/ConstData.h"
+
+// 形成一个简单的"字典"，
+// 在构造和操作regulationList时
+// 减少冗余的字段操作
+const static TCHAR* REGULATION_INFO[] = {
+	ID,
+	NAME_FIELD,
+	VERSION_FIELD,
+	PUBLISHER_FIELD,
+	LINK_TABLE_FIELD
+};
+
+static int CStrToInt( CString str )
+{
+	int clause = _tstoi((LPCTSTR)str.GetBuffer());                // 转换成int类型
+	str.ReleaseBuffer();
+	return clause;
+}
+
+// 在access中: -1表示真，0表示假
+// 需要转换成bool类型
+static int Access2Bool(int value)
+{
+	return -1*value;
+}
+
+static CString GetPathDir(const CString& path)
+{
+	// 方法1，使用splitpath和makepath方法(系统api）
+	/*
+	char path_buffer[_MAX_PATH];
+	char drive[_MAX_DRIVE];
+	char dir[_MAX_DIR];
+	char fname[_MAX_FNAME];
+	char ext[_MAX_EXT];
+
+	// 拆分路径
+	_splitpath(	m_outputEvalReportPath.GetBuffer(),
+	drive, dir, fname, ext);
+	m_outputEvalReportPath.ReleaseBuffer();
+
+	// 合并得到ini文件的路径
+	_makepath_s(path_buffer, drive, dir, fname, ".ini");
+	*/
+
+	// 方法2：也可以使用cstring的方法
+	return path.Left(path.ReverseFind(_T('\\')));
+}
+
+static bool CreateEmptyFile(const CString& path)
+{
+	CFile myfile;
+	CFileException fileException;
+	if(!myfile.Open(path, CFile::modeCreate | CFile::modeWrite, &fileException)) // 新建文件
+	{
+		// 生成数据文件失败
+		/*CString msg;
+		msg.Format("生成数据文件失败!\n文件: %s，错误: %u", path, fileException.m_cause);
+		AfxMessageBox(msg);*/
+		return false;
+	}
+	else
+	{
+		myfile.Close(); // 关闭文件
+		return true;
+	}
+}
+
+static void RemoveFile(const CString& filePath)
+{
+	CFileFind ff;
+	if(ff.FindFile(filePath))
+	{		
+		CFile::Remove(filePath);
+	}
+}
+
+static bool IsFileExist(const CString& filePath)
+{
+	CFileFind ff;
+	return ff.FindFile(filePath);
+}
+
+// 由于EvalBase项目和当前项目中的"条款编号集合"数据结构不同
+// 需要进行简单的转换
+static void ClauseCollectionTransformBy(const ClauseCollection& c1, EvalClauseCollection& c2)
+{
+	for(ClauseCollection::const_iterator itr = c1.begin(); itr != c1.end(); itr++)
+	{
+		c2.append(*itr);
+	}
+}
+
+// 创建评价单元评价结果汇总表
+static void CreateEvalUnitResultTable( CDaoDatabase* pDB, LPCTSTR tableName )
+{
+	TableCreator* pTableCreator = new TableCreator(pDB);
+	pTableCreator->createTable(tableName);              // 创建表
+	pTableCreator->addPrimaryKeyField(ID);              // id主键
+	pTableCreator->addIntField(EVAL_RESULT_FIELD);      // 评价结果
+	pTableCreator->addStringField(UNIT_FIELD);          // 评价单元名称
+	pTableCreator->closeTable();                        // 关闭表
+	delete pTableCreator;
+}
+
+// 从"评价结果汇总表"中提取条款(clauseNum)对应的评价结果(EvalResult)
+static EvalResult GetEvalResultByClause(CDaoDatabase* pDB, LPCTSTR tableName, int clauseNum)
+{
+	CDaoRecordset rs(pDB);
+	CString sql;
+	sql.Format(_T("select * from %s where %s=%d"), tableName, CLAUSE_NUM_FIELD, clauseNum);
+	rs.Open(dbOpenDynaset, sql, 0);
+
+	EvalResult er = UNKNOWN_RESULT;
+	rs.MoveFirst () ;
+	while( !rs.IsEOF() )
+	{
+		COleVariant v;
+		rs.GetFieldValue(EVAL_RESULT_FIELD , v); // 读取条款编号
+
+		er = (EvalResult)v.intVal;
+
+		// 移到下一条记录
+		rs.MoveNext () ;
+	}
+	// 关闭记录集
+	rs.Close ();
+
+	return er;
+}
+
+// 合并、计算评价单元的评价结果
+static void InsertEvalUnitResult(CDaoDatabase* pDB, LPCTSTR tableName, LPCTSTR unit, EvalResult er)
+{
+	DataWriter* pDataWriter = new DataWriter(pDB);
+	pDataWriter->beginWriteData(tableName);
+	pDataWriter->writeIntData(EVAL_RESULT_FIELD, er);
+	pDataWriter->writeStringData(UNIT_FIELD, unit);
+	pDataWriter->endWriteData();
+	delete pDataWriter;
+}
+
+// 读取office2003的安装目录
+static bool GetWordExePathFromRegistry(CString& path)
+{
+	long lRet = 0;
+	CString strRegOffice = _T("Software\\Microsoft\\Office\\11.0\\Word\\InstallRoot"); // office03版本
+	HKEY   hResult;
+	lRet = ::RegOpenKeyEx(HKEY_LOCAL_MACHINE,strRegOffice,0,KEY_QUERY_VALUE,&hResult);
+	if(lRet == ERROR_SUCCESS)
+	{
+		DWORD      WordType =  REG_SZ;        
+		DWORD      WordData =  100;
+		LPTSTR     KeyByte[1024];
+		lRet = ::RegQueryValueEx(hResult,(_T("Path")),NULL,&WordType,(LPBYTE)KeyByte, &WordData);
+		if(lRet == ERROR_SUCCESS)
+		{
+			path = (LPTSTR)KeyByte;
+			path.Append(_T("word.exe")); // 合并得到word.exe路径
+		}
+		RegCloseKey(hResult); 
+	}
+	return (lRet == ERROR_SUCCESS);
+}
+
+// 使用ShellExecute打开文档
+static void OpenWordDocument(const CString& filePath)
+{
+	//CString filePath = _T("C:\\Users\\anheihb03dlj\\Desktop\\《煤矿安全规程》103条需风量计算方法.doc");
+	ShellExecute(NULL, _T("open"), filePath, NULL, NULL, SW_SHOWNORMAL);
+}
+
+IMPLEMENT_DYNAMIC(NormalEvalSettingDlg, CDialog)
+
+NormalEvalSettingDlg::NormalEvalSettingDlg(CWnd* pParent /*=NULL*/)
+	: CDialog(NormalEvalSettingDlg::IDD, pParent)
+	, m_regulationInfoFileName(_T(""))
+	, m_outputEvalReportPath(_T(""))
+{
+
+}
+
+NormalEvalSettingDlg::~NormalEvalSettingDlg()
+{
+}
+
+void NormalEvalSettingDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CDialog::DoDataExchange(pDX);
+	DDX_Text(pDX, IDC_DB_PATH_EDIT, m_regulationInfoFileName);
+	DDX_Control(pDX, IDC_REGULATION_LIST, m_regulationListCtrl);
+	DDX_Control(pDX, IDC_EVAL_UNIT_TREE, m_evalUnitTreeCtrl);
+	DDX_Control(pDX, IDC_EVAL_TYPE1_RADIO, m_normalEvalTypeRadio);
+	DDX_Text(pDX, IDC_OUTPUT_EDIT, m_outputEvalReportPath);
+}
+
+
+BEGIN_MESSAGE_MAP(NormalEvalSettingDlg, CDialog)
+	ON_BN_CLICKED(IDC_DB_PATH_SEL_BUTTON, &NormalEvalSettingDlg::OnBnClickedDbPathSelButton)
+	ON_BN_CLICKED(IDC_EVAL_TYPE1_RADIO, &NormalEvalSettingDlg::OnBnClickedEvalType1Radio)
+	ON_BN_CLICKED(IDC_EVAL_TYPE2_RADIO, &NormalEvalSettingDlg::OnBnClickedEvalType2Radio)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_REGULATION_LIST, &NormalEvalSettingDlg::OnLvnItemchangedRegulationList)
+	ON_BN_CLICKED(IDC_OUTPUT_BUTTON, &NormalEvalSettingDlg::OnBnClickedOutputButton)
+	ON_BN_CLICKED(IDOK, &NormalEvalSettingDlg::OnBnClickedOk)
+	//ON_BN_CLICKED(IDC_INIT_BTN, &NormalEvalSettingDlg::OnBnClickedInitBtn)
+END_MESSAGE_MAP()
+
+
+// NormalEvalSettingDlg 消息处理程序
+BOOL NormalEvalSettingDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+
+	initRegulationListCtrl();
+	initEvalUnitTreeCtrl();
+
+	m_normalEvalTypeRadio.SetCheck(BST_CHECKED);
+	m_evalUnitTreeCtrl.EnableWindow(FALSE);
+
+	return TRUE;  // return TRUE unless you set the focus to a control
+	// 异常: OCX 属性页应返回 FALSE
+}
+
+void NormalEvalSettingDlg::OnBnClickedDbPathSelButton()
+{
+	CFileDialog  openDialog(
+		TRUE, 
+		_T("mdb"), 
+		NULL, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, 
+		_T("Access2003数据库(*.mdb)|*.mdb||"));
+
+	if(IDOK==openDialog.DoModal()) 
+	{ 
+		CString cFilePath=openDialog.GetPathName(); 
+		m_regulationInfoFileName = cFilePath.GetBuffer();
+		cFilePath.ReleaseBuffer();
+		UpdateData(FALSE);          // 显示在编辑框中
+
+		readRegulationInfoFromDB(); // 读取数据库
+	}
+}
+
+void NormalEvalSettingDlg::OnBnClickedEvalType1Radio()
+{
+	// 逐条评价，禁用treeCtrl
+	m_evalUnitTreeCtrl.DeleteAllItems();
+	m_evalUnitTreeCtrl.EnableWindow(FALSE);
+}
+
+void NormalEvalSettingDlg::OnBnClickedEvalType2Radio()
+{
+	// 按评价单元划分评价
+	m_evalUnitTreeCtrl.EnableWindow(TRUE);
+	m_regulationListCtrl.SetItemState(0, LVIS_SELECTED, 3);
+}
+
+void NormalEvalSettingDlg::OnLvnItemchangedRegulationList(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	NM_LISTVIEW* pNMListView = (NM_LISTVIEW*)pNMHDR;
+	if(pNMListView->iItem != -1)
+	{
+		// 清空评价单元树状结构
+		m_evalUnitTreeCtrl.DeleteAllItems();
+
+		int row = pNMListView->iItem;
+		CString tablename = m_regulationListCtrl.GetItemText(row, 4); // 取table名
+		if(tablename.GetLength() != 0) // 表的名称为空
+		{
+			//AfxMessageBox(tablename);
+			if(BST_UNCHECKED == m_normalEvalTypeRadio.GetCheck()) // 根据表名从数据库中读取评价单元和条款信息
+			{
+				readEvalUnitFromDB(tablename);
+			}
+		}
+	}
+	*pResult = 0;
+}
+
+void NormalEvalSettingDlg::OnBnClickedOutputButton()
+{
+	CFileDialog SaveDialog(FALSE, _T("*doc"), NULL, OFN_NOCHANGEDIR | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("Word2003文档(*.doc)|*.doc||"));
+
+	if(IDOK == SaveDialog.DoModal()) 
+	{ 
+		CString cFilePath=SaveDialog.GetPathName(); 
+		m_outputEvalReportPath = cFilePath.GetBuffer();
+		cFilePath.ReleaseBuffer();
+		UpdateData(FALSE); // 显示输出路径
+	}
+}
+
+void NormalEvalSettingDlg::OnBnClickedOk()
+{
+	UpdateData(TRUE);
+
+	if(!checkInput()) return;  // 检查输入失败
+	if(!checkOutput()) return; // 检查输出失败
+
+	// 清理与m_regulationInfoFileName在同一目录下的临时文件
+	CString dir = GetPathDir(m_regulationInfoFileName);
+	//cleanTempData(dir);
+
+	if(getEvalMethodType() == 0)
+	{
+		doNormalEvalWithoutUnit(dir);
+	}
+	else
+	{
+		MessageBox(_T("未实现"));
+		/*EvalUnitInfoMap euim;
+		getSelEvalUnitMap(euim);
+
+		if(euim.empty())
+		{
+			MessageBox(_T("请至少选择一个评价单元进行评价"));
+		}
+		else
+		{
+			doNormalEvalWithUnit(m_outputEvalReportPath, euim);
+		}	*/
+	}
+	if(generateReport(dir))
+	{
+		// 在规程信息数据库所在目录下打开评价报告模板
+		CString filePath;
+		filePath.Format(_T("%s\\%s.doc"), dir, EVAL_REPORT_TEMPLATE_FILE_NAME);
+		OpenWordDocument(filePath);
+
+		MessageBox(_T("评价完成并生成报告!"));
+
+		// 打开生成的报告
+		OpenWordDocument(m_outputEvalReportPath);
+	}
+	else
+	{
+		MessageBox(_T("生成评价报告失败!"));
+	}
+
+	// 清除临时文件(等程序最终完成之后，再取消注释)
+	//cleanTempData(dir);
+	//OnOK();
+}
+
+bool NormalEvalSettingDlg::checkInput()
+{
+	if(m_regulationInfoFileName.GetLength() == 0)
+	{
+		MessageBox(_T("请选择规程信息数据库!"));
+		return false;
+	}
+
+	if(m_regulationListCtrl.GetItemCount() == 0)
+	{
+		MessageBox(_T("规程信息数据库中没有任何规程信息!"));
+		return false;
+	}
+
+	CString regulationTable = getSelRegulationTableName();
+	if(regulationTable.GetLength() == 0)
+	{
+		MessageBox(_T("选中的规程不包含任何条款信息!"));
+		return false;
+	}
+
+	if(getEvalMethodType() == 1)
+	{
+		if(m_evalUnitTreeCtrl.GetCount() == 0)
+		{
+			MessageBox(_T("没有构建评价单元体系，无法执行评价!"));
+			return false;
+		}
+	}
+	return true;
+}
+
+bool NormalEvalSettingDlg::checkOutput()
+{
+	if(m_outputEvalReportPath.GetLength() == 0)
+	{
+		MessageBox(_T("请选择报告输出路径!"));
+		return false;
+	}
+	return true;
+}
+
+void NormalEvalSettingDlg::initRegulationListCtrl()
+{
+	m_regulationListCtrl.SetExtendedStyle(m_regulationListCtrl.GetExtendedStyle() | LVS_EX_GRIDLINES | LVS_EX_FULLROWSELECT);
+	LVCOLUMN lvcol;
+	lvcol.mask = LVCF_FMT | LVCF_SUBITEM | LVCF_TEXT | LVCF_WIDTH;
+	lvcol.fmt = LVCFMT_CENTER;	
+	lvcol.iSubItem = 1;
+	lvcol.cx = 80;
+
+	const int len = sizeof(REGULATION_INFO)/sizeof(REGULATION_INFO[0]);
+	for(int i = 0; i < len; i++)
+	{
+		lvcol.pszText = const_cast<LPTSTR>(REGULATION_INFO[i]);
+		m_regulationListCtrl.InsertColumn(i, &lvcol);
+	}
+}
+
+void NormalEvalSettingDlg::readRegulationInfoFromDB()
+{
+	//this->m_regulationListCtrl.DeleteAllItems();
+
+	// 开始读取数据，并插入到listctrl
+	const int len = sizeof(REGULATION_INFO)/sizeof(REGULATION_INFO[0]);
+	UINT nIndex = 0 ;
+
+	CDaoDatabase db;
+	db.Open(m_regulationInfoFileName);
+	CDaoRecordset rs(&db);
+	try
+	{
+		CString sql;
+		sql.Format(_T("select * from %s"), REGULATION_INFO_MAIN_TABLE_NAME); // 读取regulationInfo表
+		rs.Open(dbOpenDynaset, sql, 0);
+
+		rs.MoveFirst () ;
+		while( !rs.IsEOF() )
+		{
+			// 在列表控件添加记录
+			CString idStr;
+			idStr.Format(_T("%d"), nIndex+1);
+			this->m_regulationListCtrl.InsertItem(nIndex, idStr);
+
+			for(int i = 0; i < len ; i++ )
+			{
+				if(i == 0)
+				{
+					m_regulationListCtrl.SetItemText(nIndex, 0, idStr);
+				}
+				else
+				{
+					COleVariant v;
+					rs.GetFieldValue(REGULATION_INFO[i] , v);
+					this->m_regulationListCtrl.SetItemText(nIndex, i, (LPCTSTR)v.bstrVal);
+				}
+			}
+			// 移到下一条记录
+			rs.MoveNext () ;
+			nIndex++ ;
+		}
+	}
+	catch(CDaoException* e)
+	{
+		//AfxMessageBox(e->m_pErrorInfo->m_strDescription);
+		e->Delete();
+
+		// 异常处理
+		m_regulationInfoFileName = _T("");
+		UpdateData(FALSE);  // 更新
+	}
+	// 关闭记录集
+	if(rs.IsOpen()) rs.Close();
+	db.Close();
+}
+
+void NormalEvalSettingDlg::initEvalUnitTreeCtrl()
+{
+	// 关联3态treectrl的图标
+	m_imgState.Create(IDB_BITMAP2, 13, 1, RGB(255,255,255));
+	m_imgList.Create(IDB_BITMAP1, 16, 1, RGB(255,255,255));
+
+	m_evalUnitTreeCtrl.SetImageList(&m_imgList,TVSIL_NORMAL);
+	m_evalUnitTreeCtrl.SetImageList(&m_imgState,TVSIL_STATE);
+}
+
+void NormalEvalSettingDlg::readEvalUnitFromDB(const CString& tableName)
+{
+	EvalUnitInfoMap euim;
+	initEvalUntiHierarchy(tableName, euim);
+	if(euim.empty()) return;
+
+	caclEvalUnitHierarchy(euim);
+	buildTree(euim); // 构建树
+}
+
+void NormalEvalSettingDlg::initEvalUntiHierarchy( const CString& tableName, EvalUnitInfoMap& euim )
+{
+	CDaoDatabase db;
+	db.Open(m_regulationInfoFileName);
+	CDaoRecordset rs(&db);
+	try
+	{
+		// 检测表是否存在	
+		CString sql;
+		sql.Format(_T("select * from %s"), tableName);
+		rs.Open(dbOpenDynaset, sql, 0);
+		rs.MoveFirst () ;
+
+		while( !rs.IsEOF() )
+		{
+			CString parent_unit, unit;
+			int clauseNum;
+			COleVariant v;
+
+			rs.GetFieldValue(PARENT_UNIT_FIELD, v);
+			parent_unit.Format(_T("%s"), v.bstrVal); // 得到parent_unit
+
+			rs.GetFieldValue(UNIT_FIELD, v);
+			unit.Format(_T("%s"), v.bstrVal); // 得到unit
+
+			rs.GetFieldValue(CLAUSE_NUM_FIELD, v);
+			clauseNum = v.intVal;
+
+			if( (parent_unit.GetLength() != 0) && (euim.find(parent_unit) == euim.end()) )
+			{
+				EvalUnitInfo unknown_info; // 未知节点信息
+				unknown_info.parent_unit = _T("");
+				unknown_info.hierarchy_num = 0; 
+				euim.insert(EvalUnitInfoMap::value_type(parent_unit, unknown_info));
+			}
+
+			EvalUnitInfoMap::iterator itr = euim.find(unit);			
+			if(itr == euim.end())
+			{
+				EvalUnitInfo info;
+				info.parent_unit = parent_unit;
+				info.hierarchy_num = 0;
+				info.clauses.push_back(clauseNum);
+				euim.insert(EvalUnitInfoMap::value_type(unit, info));
+			}
+			else				
+			{
+				if(itr->second.parent_unit.GetLength() == 0) // 表示尚未更新
+				{
+					itr->second.parent_unit = parent_unit;
+				}
+				itr->second.clauses.push_back(clauseNum);
+			}
+
+			// 移到下一条记录
+			rs.MoveNext () ;
+		}
+	}
+	catch(CDaoException* e)
+	{
+		//AfxMessageBox(e->m_pErrorInfo->m_strDescription);
+		e->Delete();
+	}
+
+	// 关闭记录集
+	if(rs.IsOpen()) rs.Close();
+	db.Close();
+}
+
+void NormalEvalSettingDlg::caclEvalUnitHierarchy(EvalUnitInfoMap& euim)
+{
+	while(true)
+	{
+		bool hasMoreToRevise = false;
+		for(EvalUnitInfoMap::iterator itr = euim.begin(); itr != euim.end(); itr++)
+		{
+			if(itr->second.parent_unit.GetLength() == 0) continue;
+			EvalUnitInfo info = itr->second;
+			int num = info.hierarchy_num;
+			int parent_num = euim[info.parent_unit].hierarchy_num;
+			if(parent_num >= num)
+			{
+				itr->second.hierarchy_num = parent_num + 1;
+				hasMoreToRevise = true;
+			}
+		}
+		if(!hasMoreToRevise) break;
+	}
+}
+
+void NormalEvalSettingDlg::buildTree( EvalUnitInfoMap& euim )
+{
+	TV_INSERTSTRUCT tvinsert;
+
+	tvinsert.hParent=NULL;
+	tvinsert.hInsertAfter=TVI_LAST;
+	tvinsert.item.mask=TVIF_IMAGE|TVIF_SELECTEDIMAGE|TVIF_TEXT|TVIF_STATE;
+	tvinsert.item.hItem=NULL;
+	tvinsert.item.state=INDEXTOSTATEIMAGEMASK( 1 );
+	tvinsert.item.stateMask=TVIS_STATEIMAGEMASK;
+	tvinsert.item.cchTextMax=6;
+	tvinsert.item.iSelectedImage=1;
+	tvinsert.item.cChildren=0;
+	tvinsert.item.lParam=0;
+
+	buildSubTree(euim, tvinsert, _T(""), 0);
+}
+
+void NormalEvalSettingDlg::buildSubTree( EvalUnitInfoMap& euim, TV_INSERTSTRUCT tvinsert, const CString& parent_unit, int hierarchy_num )
+{
+	bool hasMoreNodes = false;
+	for(EvalUnitInfoMap::iterator itr = euim.begin(); itr != euim.end(); itr++)
+	{
+		EvalUnitInfo info = itr->second;
+		if(info.hierarchy_num == hierarchy_num && info.parent_unit == parent_unit)
+		{
+			hasMoreNodes = true;
+
+			tvinsert.item.pszText= (LPTSTR)(LPCTSTR)itr->first;
+			tvinsert.item.iImage=0;
+
+			TV_INSERTSTRUCT childTVInsert = tvinsert;
+			childTVInsert.hParent = m_evalUnitTreeCtrl.InsertItem(&tvinsert);			
+			buildSubTree(euim, childTVInsert, itr->first, hierarchy_num+1);
+		}
+	}
+
+	// 可以根据需要设置选项，是否需要显示叶子节点（具体的条款编号）
+	if(!hasMoreNodes) insertLeafNode(euim, tvinsert, parent_unit);
+}
+
+void NormalEvalSettingDlg::insertLeafNode( EvalUnitInfoMap& euim, TV_INSERTSTRUCT tvinsert, const CString& parent_unit )
+{
+	// 插入叶子
+	for(EvalUnitInfoMap::iterator itr = euim.begin(); itr != euim.end(); itr++)
+	{
+		if(itr->first == parent_unit)
+		{
+			ClauseCollection::iterator list_itr_begin = itr->second.clauses.begin();
+			ClauseCollection::iterator list_itr_end = itr->second.clauses.end();
+			ClauseCollection::iterator list_itr;
+			for(list_itr = list_itr_begin; list_itr != list_itr_end; list_itr++)
+			{
+				CString num;
+				num.Format(_T("%d"), *list_itr); // 条款编号
+				tvinsert.item.pszText = (LPTSTR)(LPCTSTR)num;
+
+				HTREEITEM hItem = m_evalUnitTreeCtrl.InsertItem(&tvinsert);
+			}
+		}
+	}
+}
+
+int NormalEvalSettingDlg::getEvalMethodType()
+{
+	if(BST_CHECKED == m_normalEvalTypeRadio.GetCheck()) 
+		return 0;
+	else 
+		return 1;
+}
+
+CString NormalEvalSettingDlg::getSelRegulationTableName()
+{
+	int row = 0;
+	for(int i = 0; i < m_regulationListCtrl.GetItemCount(); i++)
+	{
+		if(LVIS_SELECTED == m_regulationListCtrl.GetItemState(i, LVIS_SELECTED))
+		{
+			row = i; 
+			break;
+		}
+	}
+	return m_regulationListCtrl.GetItemText(row, 4); // 获取table name
+}
+
+void NormalEvalSettingDlg::getClauseCollection(ClauseCollection& clauses )
+{
+	CString tableName = getSelRegulationTableName(); // 当前选择的规程对应的数据库表
+
+	CDaoDatabase db;
+	db.Open(m_regulationInfoFileName);
+	CDaoRecordset rs(&db);
+	try
+	{
+		CString sql;
+		sql.Format(_T("select * from %s"), tableName);      // 读取规程表--tablename
+		rs.Open(dbOpenDynaset, sql, 0);
+
+		rs.MoveFirst () ;
+		while( !rs.IsEOF() )
+		{
+			COleVariant v;
+			rs.GetFieldValue(CLAUSE_NUM_FIELD , v); // 读取条款编号
+			clauses.push_back(v.intVal);
+
+			rs.MoveNext () ;
+		}
+	}
+	catch(CDaoException* e)
+	{
+		//AfxMessageBox(e->m_pErrorInfo->m_strDescription);
+		e->Delete();
+		clauses.clear(); // 出现异常，清空
+	}
+	// 关闭记录集
+	if(rs.IsOpen()) rs.Close();
+	db.Close();
+}
+
+void NormalEvalSettingDlg::getSelEvalUnitMap( EvalUnitInfoMap& euim )
+{
+	HTREEITEM hItem = m_evalUnitTreeCtrl.GetRootItem();
+	while(hItem != NULL)
+	{
+		visitTree(euim, m_evalUnitTreeCtrl, hItem);
+		hItem = m_evalUnitTreeCtrl.GetNextSiblingItem(hItem); // 同一层的根节点
+	}
+}
+
+void NormalEvalSettingDlg::visitTree(EvalUnitInfoMap& euim, CTreeCtrl& tree, HTREEITEM hItem) 
+{
+	int nState = tree.GetItemState( hItem, TVIS_STATEIMAGEMASK ) >> 12;  		// 检查节点的状态
+	if(nState < 2) return;	                                                    // 没有选择节点
+
+	CString unit = tree.GetItemText(hItem);                                     // 评价单元
+
+	CString parent_unit;                                                        // 父评价单元
+	HTREEITEM hParentItem = tree.GetParentItem(hItem);
+	if(hParentItem != NULL) parent_unit = tree.GetItemText(hParentItem);
+
+	if(tree.ItemHasChildren(hItem))
+	{
+		if(nState == 3)                                                         // 节点全部选择
+		{
+			EvalUnitInfo info;
+			info.parent_unit = parent_unit;
+			euim.insert(EvalUnitInfoMap::value_type(unit, info));
+		}
+
+		HTREEITEM hChildItem = tree.GetChildItem(hItem);                        // 递归遍历子节点
+		while(hChildItem!=NULL)
+		{
+			visitTree(euim, tree, hChildItem);
+			hChildItem = tree.GetNextItem(hChildItem, TVGN_NEXT);
+		}
+	}
+	else if(parent_unit.GetLength() != 0)
+	{
+		// 叶子节点，也就是具体的条款编号
+		euim[parent_unit].clauses.push_back(CStrToInt(unit));
+	}
+}
+
+void NormalEvalSettingDlg::doNormalEvalWithoutUnit(const CString& outputDirPath)
+{
+	// 收集所选择的规程中所有条款编号
+	CString regulationName = getSelRegulationTableName();
+	if(regulationName.GetLength() == 0) return ;
+
+	EvalService* pEvalService = EvalService::CreateInstance();
+
+	// 加载插件
+	// 目前暂时这么处理
+	// 后期在考虑插件加载...
+	pEvalService->loadPlugin(BuildPath(GetAppPathDir(), _T("cmsr2010.arx")));
+
+	// 设置评价结果数据库路径
+	// 将数据库与报告放在同一个目录下
+	CString path;
+	path.Format(_T("%s\\%s.mdb"), outputDirPath, EVAL_RESULT_DATA_BASE_NAME);
+	pEvalService->setEvalResultDataBasePath(path);
+
+	typedef std::deque<int> ClauseCollection;
+	ClauseCollection clauses;
+	getClauseCollection(clauses);    // 收集需要评价的条款编号（目前的实现是从数据库中读取所有的编号）
+
+	EvalClauseCollection clauses2;
+	ClauseCollectionTransformBy(clauses, clauses2);      // 使用的数据结构不同，简单的转换一下
+	pEvalService->doRegEval(regulationName, clauses2);   // 执行评价，并将结果写入到数据库
+
+	EvalService::DestroyInstance();
+
+	// 将用户调查结果与评价结果合并
+	//mergeEvalResultByUser(path, m_regulationInfoFileName, regulationName);
+}
+
+void NormalEvalSettingDlg::doNormalEvalWithUnit(const CString& outputEvalReportPath, EvalUnitInfoMap& euim)
+{
+	CString regulationName = getSelRegulationTableName();
+	if(regulationName.GetLength() == 0) return ;
+
+	EvalService* pEvalService = EvalService::CreateInstance();
+
+	// 加载插件
+	// 目前暂时这么处理
+	// 后期再考虑插件加载...
+	pEvalService->loadPlugin(BuildPath(GetAppPathDir(), _T("cmsr2010.arx")));
+
+	// 设置评价结果数据库路径
+	// 将数据库与报告放在同一个目录下
+	CString path;
+	path.Format(_T("%s\\%s.mdb"), GetPathDir(outputEvalReportPath), EVAL_RESULT_DATA_BASE_NAME);
+	pEvalService->setEvalResultDataBasePath(path);
+
+	// 1、执行具体条款的评价	
+	doNormalEvalWithUnit_firstStep(path, regulationName, euim);
+
+	EvalService::DestroyInstance();
+
+	// 将用户调查结果与评价结果合并
+	//mergeEvalResultByUser(path, m_regulationInfoFileName, regulationName);
+
+	// 创建评价单元的评价结果汇总表
+	CDaoDatabase db;
+	db.Open(path);
+	CreateEvalUnitResultTable(&db, EVAL_UNIT_RESULT_TABLE_NAME);
+
+	// 2、计算评价单元的评价结果
+	EvalResultMap er_map;
+	doNormalEvalWithUnit_secondStep(&db, euim, er_map);
+
+	// 3、将评价单元的评价结果写入到数据库中
+	doNormalEvalWithUnit_thirdStep(&db, er_map);
+
+	db.Close();
+}
+
+void NormalEvalSettingDlg::doNormalEvalWithUnit_firstStep( LPCTSTR dbPath, const CString& regulationTable, EvalUnitInfoMap& euim )
+{
+	EvalService* pEvalService = EvalService::GetInstance();
+
+	// 评价的时候总是删除原有的数据库，
+	// 保证数据库始终时候最新的
+	pEvalService->setEvalResultDataBasePath(dbPath);           // 设置评价结果数据库路径
+
+	EvalClauseCollection clauses;
+	for(EvalUnitInfoMap::iterator itr = euim.begin(); itr != euim.end(); itr++)
+	{
+		EvalClauseCollection temp_clauses;
+		ClauseCollectionTransformBy(itr->second.clauses, temp_clauses);
+		clauses.append(temp_clauses);
+	}
+	pEvalService->doRegEval(regulationTable, clauses);        // 执行评价，并将结果写入到数据库
+}
+
+void NormalEvalSettingDlg::doNormalEvalWithUnit_secondStep( CDaoDatabase* pDB, EvalUnitInfoMap& euim, EvalResultMap& er_map )
+{
+	for(EvalUnitInfoMap::iterator itr = euim.begin(); itr != euim.end(); itr++)
+	{
+		CString unit = itr->first;
+		CString parent_unit = itr->second.parent_unit;
+
+		if(er_map.find(unit) == er_map.end()) er_map.insert(EvalResultMap::value_type(unit, Qualified));
+
+		ClauseCollection& clauses = itr->second.clauses;
+		if(clauses.empty()) continue;
+
+		EvalResult er = er_map[unit];
+		for(ClauseCollection::iterator c_itr = clauses.begin(); c_itr != clauses.end(); c_itr++)
+		{
+			er = DiffEvalResult(GetEvalResultByClause(pDB, TOTAL_EVAL_RESULT_TABLE_NAME, *c_itr), er);
+		}
+		er_map[unit] = er;
+
+		if(euim.find(parent_unit) != euim.end())
+		{
+			// 修正父评价单元的结果
+			EvalResultMap::iterator itr2 = er_map.find(parent_unit);
+			if(itr2 == er_map.end())
+			{			
+				er_map.insert(EvalResultMap::value_type(parent_unit,DiffEvalResult(er_map[unit], Qualified)));
+			}
+			else
+			{
+				itr2->second = DiffEvalResult(er_map[unit], itr2->second);
+			}
+		}
+	}
+}
+
+void NormalEvalSettingDlg::doNormalEvalWithUnit_thirdStep( CDaoDatabase* pDB, EvalResultMap& er_map )
+{
+	for(EvalResultMap::iterator itr = er_map.begin(); itr != er_map.end(); itr++)
+	{
+		// 插入到数据库中
+		InsertEvalUnitResult(pDB, EVAL_UNIT_RESULT_TABLE_NAME, itr->first, er_map[itr->first]);
+	}
+}
+
+void NormalEvalSettingDlg::mergeEvalResultByUser( const CString& evalResultDBPath, const CString& regulationDBPath, const CString& regulationTable )
+{
+	// 规程信息数据库
+	CDaoDatabase regulationDB;
+	regulationDB.Open(regulationDBPath);
+
+	// 评价结果数据库
+	CDaoDatabase evalResultDB;
+	evalResultDB.Open(evalResultDBPath);
+	CDaoRecordset rs(&evalResultDB);
+	try
+	{
+		CString sql;
+		sql.Format(_T("select * from %s"), TOTAL_EVAL_RESULT_TABLE_NAME);
+		rs.Open(dbOpenDynaset, sql, 0);
+		rs.MoveFirst();
+		while( !rs.IsEOF() )
+		{
+			COleVariant v1, v2;
+			rs.GetFieldValue(CLAUSE_NUM_FIELD , v1);        // 读取条款编号
+						
+			rs.GetFieldValue(CLAUSE_IMPL_STATE_FIELD, v2);  // 读取条款实现状态
+			if(UNKNOWN_RESULT == v2.intVal)                 // 条款没有实现
+			{
+				int qnr = getInitQuestionNaireResult(&regulationDB, regulationTable, v1.intVal);
+				if(qnr != -1)
+				{
+					rs.Edit();
+					CString value;
+					value.Format(_T("%d"), ConvertBoolToEvalResult(qnr));
+					rs.SetFieldValue(EVAL_RESULT_FIELD, (LPCTSTR)value);
+					rs.Update();
+				}
+			}
+			rs.MoveNext();
+		}
+	}
+	catch(CDaoException* e)
+	{
+		//AfxMessageBox(e->m_pErrorInfo->m_strDescription);
+		e->Delete();
+	}
+	// 关闭记录集
+	if(rs.IsOpen()) rs.Close();
+	evalResultDB.Close();
+	regulationDB.Close();
+}
+
+int NormalEvalSettingDlg::getInitQuestionNaireResult(
+	CDaoDatabase* pRegulationDB,
+	const CString& regulationTable, 
+	int clauseNum)
+{
+	int qnr = -1; // 未知
+	CDaoRecordset rs(pRegulationDB);
+	try
+	{
+		CString sql;
+		sql.Format(_T("select * from %s where %s=%d"), regulationTable, CLAUSE_NUM_FIELD, clauseNum);
+		rs.Open(dbOpenDynaset, sql, 0);
+
+		rs.MoveFirst();
+		while( !rs.IsEOF() )
+		{
+			COleVariant v;
+			rs.GetFieldValue(INIT_QUSESTION_NAIRE_RESULT_FIELD, v);
+			qnr = Access2Bool(v.boolVal); // 转换类型
+			rs.MoveNext () ;
+		}
+	}
+	catch(CDaoException* e)
+	{
+		//AfxMessageBox(e->m_pErrorInfo->m_strDescription);
+		e->Delete();
+	}
+	// 关闭记录集
+	if(rs.IsOpen()) rs.Close();
+	
+	return qnr;
+}
+
+void NormalEvalSettingDlg::OnBnClickedInitBtn()
+{
+	UpdateData(TRUE);
+	if(!checkInput()) return;
+
+	QuestionNaireDlg qnd;
+	qnd.m_dbPath = m_regulationInfoFileName;
+	qnd.m_mainTalbe = REGULATION_INFO_MAIN_TABLE_NAME;
+	qnd.m_regulationTable = getSelRegulationTableName();
+	qnd.DoModal();
+}
+
+static bool WriteCoalMineInfo(CIniFile& iniFile)
+{
+	// 获取"矿井信息"数据对象
+	AcDbObjectId objId;
+	if(!SingleDataObjectHelper::GetObjectId(COAL_MINE_SECTION, objId)) return false;
+	
+	// "名称"
+	CString v1;
+	if(!DataHelper::GetPropertyData(objId, COAL_MINE_NAME_KEY, v1)) return false;
+
+	// "隶属集团公司"
+	CString v2;
+	if(!DataHelper::GetPropertyData(objId, COMPANY_NAME_KEY, v2)) return false;
+
+	iniFile.SetKeyValue(COAL_MINE_SECTION, COAL_MINE_NAME_KEY, v1);
+	iniFile.SetKeyValue(COAL_MINE_SECTION, COMPANY_NAME_KEY, v2);
+	
+	return true;
+}
+
+static bool WriteEvalProjectInfo(CIniFile& iniFile)
+{
+	AcDbObjectId objId;
+	if(!SingleDataObjectHelper::GetObjectId(EVAL_PROJECT_INFO_SECTION, objId)) return false;
+
+	// “评价依据”
+	CString v1;
+	if(!DataHelper::GetPropertyData(objId, EVAL_REGULATION_KEY, v1)) return false;
+
+	// "制定评价方案开始时间"
+	CString v2;
+	if(!DataHelper::GetPropertyData(objId, PREPARE_SOLUTION_BEGIN_KEY, v2)) return false;
+
+	// "制定评价方案结束时间"
+	CString v3;
+	if(!DataHelper::GetPropertyData(objId, PREPARE_SOLUTION_END_KEY, v3)) return false;
+
+	// "收集评价资料开始时间"
+	CString v4;
+	if(!DataHelper::GetPropertyData(objId, PREPARE_INFO_BEGIN_KEY, v4)) return false;
+
+	// "收集评价资料结束时间"
+	CString v5;
+	if(!DataHelper::GetPropertyData(objId, PREPARE_INFO_END_KEY, v5)) return false;
+
+	// "签订评价合同开始时间"
+	CString v6;
+	if(!DataHelper::GetPropertyData(objId, PREPARE_CONTRACT_BEGIN_KEY, v6)) return false;
+
+	// "签订评价合同结束时间"
+	CString v7;
+	if(!DataHelper::GetPropertyData(objId, PREPARE_CONTRACT_END_KEY, v7)) return false;
+
+	// "评价宣传贯彻开始时间"
+	CString v8;
+	if(!DataHelper::GetPropertyData(objId, SURVEY_LEARN_BEGIN_KEY, v8)) return false;
+
+	// "评价宣传贯彻结束时间"
+	CString v9;
+	if(!DataHelper::GetPropertyData(objId, SURVEY_LEARN_END_KEY, v9)) return false;
+
+	// "开展评价工作开始时间"
+	CString v10;
+	if(!DataHelper::GetPropertyData(objId, WORK_DO_BEGIN_KEY, v10)) return false;
+
+	// "开展评价工作结束时间"
+	CString v11;
+	if(!DataHelper::GetPropertyData(objId, WORK_DO_END_KEY, v11)) return false;
+
+	// "编制评价报告开始时间"
+	CString v12;
+	if(!DataHelper::GetPropertyData(objId, WORK_REPORT_BEGIN_KEY, v12)) return false;
+
+	// "编制评价报告结束时间"
+	CString v13;
+	if(!DataHelper::GetPropertyData(objId, WORK_REPORT_END_KEY, v13)) return false;
+
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, EVAL_REGULATION_KEY, v1);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, PREPARE_SOLUTION_BEGIN_KEY, v2);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, PREPARE_SOLUTION_END_KEY, v3);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, PREPARE_INFO_BEGIN_KEY, v4);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, PREPARE_INFO_END_KEY, v5);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, PREPARE_CONTRACT_BEGIN_KEY, v6);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, PREPARE_CONTRACT_END_KEY, v7);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, SURVEY_LEARN_BEGIN_KEY, v8);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, SURVEY_LEARN_END_KEY, v9);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, WORK_DO_BEGIN_KEY, v10);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, WORK_DO_END_KEY, v11);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, WORK_REPORT_BEGIN_KEY, v12);
+	iniFile.SetKeyValue(EVAL_PROJECT_INFO_SECTION, WORK_REPORT_END_KEY, v13);
+
+	return true;
+}
+
+static bool WriteExtraData(CIniFile& iniFile)
+{
+	// 1、写入矿井信息
+	if(!WriteCoalMineInfo(iniFile)) return false;
+
+	// 2、写入评价项目信息
+	return WriteEvalProjectInfo(iniFile);
+}
+
+bool NormalEvalSettingDlg::writeEvalDataIniFile(const CString& outputPath, bool regulationImpl)
+{
+	// 生成数据文件之前删除已存在的数据文件
+	CString path;
+	path.Format(_T("%s\\%s.ini"), outputPath, EVAL_DATA_INFO_FILE_NAME);
+	if(!CreateEmptyFile(path)) 
+	{
+		MessageBox(_T("生成数据文件失败!"));
+		return false;
+	}
+
+	CIniFile iniFile;
+	iniFile.SetPath(path);
+
+	// 评价方法
+	CString value;
+	value.Format(_T("%d"), getEvalMethodType());
+	iniFile.SetKeyValue(EVAL_METHOD_SECTION, EVAL_METHOD_KEY, value);
+
+	// 规程信息
+	iniFile.SetKeyValue(REGULATION_INFO_SECTION, REGULATION_DATABASE_PATH_KEY, m_regulationInfoFileName);
+	iniFile.SetKeyValue(REGULATION_INFO_SECTION, REGULATION_TABLE_KEY, getSelRegulationTableName());
+
+	// 评价结果
+	iniFile.SetKeyValue(EVAL_RESULT_SECTION, EVAL_RESULT_KEY, (regulationImpl?"1":"0"));
+
+	// 评价报告
+	iniFile.SetKeyValue(EVAL_REPORT_FILE_NAME_SECTION, EVAL_REPORT_FILE_NAME_KEY, m_outputEvalReportPath);
+
+	bool ret = WriteExtraData(iniFile);
+	// 还需要写入其它的信息
+	// 矿井信息及评价项目信息
+	if(!ret)
+	{
+		RemoveFile(path);  // 写入数据失败，删除ini文件
+	}
+	return ret;
+}
+
+void NormalEvalSettingDlg::cleanTempData(const CString& outputPath)
+{
+	CString path;
+	path.Format(_T("%s\\%s.ini"), outputPath, EVAL_DATA_INFO_FILE_NAME);
+	RemoveFile(path);
+
+	path.Format(_T("%s\\%s.mdb"), outputPath, EVAL_RESULT_DATA_BASE_NAME);
+	RemoveFile(path);
+
+	path.Format(_T("%s\\%s.mdb"), outputPath, _T("afc"));
+	RemoveFile(path);
+}
+
+bool NormalEvalSettingDlg::generateReport( const CString& outputPath )
+{
+	CString path;
+	path.Format(_T("%s\\%s.mdb"), outputPath, EVAL_RESULT_DATA_BASE_NAME);
+	bool regulationImpl = IsFileExist(path);
+	// 评价结果数据库不存在，表示规程没有实现
+	if(!regulationImpl) return false;
+
+	return writeEvalDataIniFile(outputPath, regulationImpl);
+}

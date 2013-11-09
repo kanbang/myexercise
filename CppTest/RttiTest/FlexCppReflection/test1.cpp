@@ -1,0 +1,67 @@
+/***************************************************************************
+ *   Copyright (C) 2008 by tyler shaub   *
+ *   tyler.shaub@gmail.com   *
+ *                                                                         *
+ *   See COPYING	*
+ ***************************************************************************/
+
+#include "test1.hpp"
+
+namespace Flex_Test_
+{
+
+    void test1()
+    {
+        using namespace std;
+        using namespace Flex_;
+
+        // supports static type info look up
+        cout << "Factory::Invalid Type: " << INVALID_TYPE << endl;
+        cout << "B::Type: " << GetInfoFromType<B>().GetId() << endl;
+        cout << "A::Type: " << GetInfoFromType<A>().GetId() << endl;
+
+        cout << endl << "-----------------------------------------" << endl << endl;
+
+        {
+            A a;
+            B b;
+
+            A* apb = &b;
+
+            // 'dynamic' type lookup /w helper functions
+            GetInfoFromObj( a ).Print();
+
+            // even more dynamic lookup!
+            GetInfoFromObj( *apb ).Print();
+
+            // and, without any helpers:
+            const TypeManager& f = TypeManager::GetInst();
+            f.GetInfoFromId( f.GetIdFromStdInfo( typeid( *apb ) ) ).Print();
+
+        }
+
+        cout << endl << "-----------------------------------------" << endl << endl;
+
+        {
+            // let's create an object
+            A* newA = Create<A>( "Flex_Test_::A" );
+            GetInfoFromObj( *newA ).Print();
+
+            Destroy( newA ); // that's enough of that
+
+            // more interesting:
+            newA = Create<B>( "Flex_Test_::B" );
+            GetInfoFromObj( *newA ).Print();
+
+            // remember to clean up:
+            Destroy( newA );
+
+            A* aOfc = Create<A>( "Flex_Test_::C" );
+
+            GetInfoFromObj( *aOfc ).Print();
+
+            Destroy( aOfc );
+        }
+    }
+
+}

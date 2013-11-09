@@ -1,0 +1,23 @@
+
+¹Ø¼ü´Ê£ºmultiquadric radial basis function interpolation 
+            rbf interpolation
+            rbf interpolation c++
+            rbf multiquadric 
+
+http://noodle.med.yale.edu/~kahn/software.html
+
+http://radial.sourceforge.net/download.html
+
+http://www.codeforge.com/article/168090
+
+http://www.codeforge.com/s/0/rbf-interpolation
+
+
+http://en.wikipedia.org/wiki/Radial_basis_function
+
+http://en.wikipedia.org/wiki/Kansa_method
+
+
+http://blog.csdn.net/alaclp/article/details/7472560
+
+http://www.geog.ubc.ca/courses/klink/gis.notes/ncgia/u40.html

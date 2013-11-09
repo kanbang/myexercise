@@ -1,0 +1,115 @@
+#include "StdAfx.h"
+#include "resource.h"
+
+#include "ContourCmd.h"
+#include "ContourParamHelper.h"
+
+// 定义注册服务名称
+#ifndef CONTOUR_SERVICE_NAME
+#define CONTOUR_SERVICE_NAME _T("CONTOUR_SERVICE_NAME")
+#endif
+
+class CContourApp : public AcRxArxApp {
+
+public:
+	CContourApp () : AcRxArxApp () {}
+
+	virtual AcRx::AppRetCode On_kInitAppMsg (void *pkt) {
+		AcRx::AppRetCode retCode =AcRxArxApp::On_kInitAppMsg (pkt) ;
+		
+		// 注册服务
+		acrxRegisterService(CONTOUR_SERVICE_NAME);
+
+		acutPrintf(_T("\nContour::On_kLoadAppMsg\n"));
+
+		return (retCode) ;
+	}
+
+	virtual AcRx::AppRetCode On_kUnloadAppMsg (void *pkt) {
+		AcRx::AppRetCode retCode =AcRxArxApp::On_kUnloadAppMsg (pkt) ;
+
+		// 删除服务
+		delete acrxServiceDictionary->remove(CONTOUR_SERVICE_NAME);
+
+		acutPrintf(_T("\nContour::On_kUnloadAppMsg\n"));
+
+		return (retCode) ;
+	}
+
+	virtual AcRx::AppRetCode On_kLoadDwgMsg(void * pkt)
+	{
+		AcRx::AppRetCode retCode =AcRxDbxApp::On_kLoadDwgMsg (pkt) ;
+
+		ContourParamHelper::InitParams();
+
+		acutPrintf(_T("\nContour::On_kLoadDwgMsg\n"));
+		return retCode;
+	}
+
+	virtual AcRx::AppRetCode On_kUnloadDwgMsg(void * pkt)
+	{
+		AcRx::AppRetCode retCode =AcRxDbxApp::On_kUnloadDwgMsg (pkt) ;
+
+		acutPrintf(_T("\nContour::On_kUnloadDwgMsg\n"));
+
+		return retCode;
+	}
+
+	virtual void RegisterServerComponents () {
+	}
+	
+	static void JL_DrawGasContour(void)
+	{
+		ContourCmd::DrawGasContour();
+	}
+
+	static void JL_ShowContourParamDlg(void)
+	{
+		ContourCmd::ShowContourParamDlg();
+	}
+
+	static void JL_RestoreLabel(void)
+	{
+		ContourCmd::RestoreLabel();
+	}
+
+	static void JL_ContourTest(void)
+	{
+		extern void ContourTest();
+
+		ContourTest();
+	}
+
+	static void JL_GridCaclTest(void)
+	{
+		ContourCmd::GridCaclTest();
+	}
+
+	static void JL_PointCaclTest(void)
+	{
+		ContourCmd::PointCaclTest();
+	}	
+
+	static void JL_PolyLineJigTest(void)
+	{
+		ContourCmd::PolyLineJigTest();
+	}
+
+	static void JL_twt(void)
+	{
+		ContourCmd::twt();
+	}
+} ;
+
+IMPLEMENT_ARX_ENTRYPOINT(CContourApp)
+
+ACED_ARXCOMMAND_ENTRY_AUTO(CContourApp, JL, _DrawGasContour, DrawGasContour, ACRX_CMD_TRANSPARENT, NULL)
+ACED_ARXCOMMAND_ENTRY_AUTO(CContourApp, JL, _ShowContourParamDlg, ShowContourParamDlg, ACRX_CMD_TRANSPARENT, NULL)
+ACED_ARXCOMMAND_ENTRY_AUTO(CContourApp, JL, _RestoreLabel, RestoreLabel, ACRX_CMD_TRANSPARENT, NULL)
+
+ACED_ARXCOMMAND_ENTRY_AUTO(CContourApp, JL, _ContourTest, ContourTest, ACRX_CMD_TRANSPARENT, NULL)
+ACED_ARXCOMMAND_ENTRY_AUTO(CContourApp, JL, _GridCaclTest, GridCaclTest, ACRX_CMD_TRANSPARENT, NULL)
+ACED_ARXCOMMAND_ENTRY_AUTO(CContourApp, JL, _PointCaclTest, PointCaclTest, ACRX_CMD_TRANSPARENT, NULL)
+ACED_ARXCOMMAND_ENTRY_AUTO(CContourApp, JL, _PolyLineJigTest, PolyLineJigTest, ACRX_CMD_TRANSPARENT, NULL)
+
+ACED_ARXCOMMAND_ENTRY_AUTO(CContourApp, JL, _twt, twt, ACRX_CMD_TRANSPARENT, NULL)

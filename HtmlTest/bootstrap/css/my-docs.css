@@ -1,0 +1,46 @@
+body {
+	font-family: "宋体","Times New Roman";
+	font-size:12pt;
+}
+
+h1 {
+	font-size:22pt;
+}
+
+h2 {
+	font-size:14pt;
+}
+
+h3 {
+	font-size:12pt;
+}
+
+p {
+	font-size:12pt;
+	text-indent:2em;
+}
+
+ul {
+	font-size:12pt;
+}
+
+table {
+	font-size:10.5pt;
+	margin:0 auto;
+}
+
+/*页边距0mm*/
+.a4-1 {
+	width:794px;
+	height:1123px;
+}
+
+.a4-2 {
+	width:756px;
+	height:1086px;
+}
+
+.a4-3 {
+	width:649px;
+	height:978px;
+}

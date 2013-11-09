@@ -1,0 +1,31 @@
+<ECF>
+    <Algorithm>
+        <SteadyStateTournament>
+            <Entry Key="tsize">5</Entry>
+        </SteadyStateTournament>
+    </Algorithm>
+    <Registry>
+        <Entry Key="randomizer.seed">0</Entry>
+        <Entry Key="population.size">100</Entry>
+        <Entry Key="mutation.indprob">0.75</Entry>
+        <Entry Key="term.stagnation">100</Entry>
+        <Entry Key="log.level">3</Entry>
+        <Entry Key="log.filename">d:\log.txt</Entry>
+        <Entry Key="log.frequency">1</Entry>
+        <Entry Key="milestone.filename">out.txt</Entry>
+        <Entry Key="milestone.interval">0</Entry>
+    </Registry>
+    <Genotype>
+        <Binary>
+            <Entry Key="lbound">0.0001</Entry>
+            <Entry Key="ubound">30</Entry>
+            <Entry Key="precision">4</Entry>
+            <Entry Key="dimension">8</Entry>
+            <Entry Key="rounding">0</Entry>
+            <Entry Key="mut.simple">1</Entry>
+            <Entry Key="mut.mix">0</Entry>
+            <Entry Key="crx.onepoint">1</Entry>
+            <Entry Key="crx.uniform">0</Entry>
+        </Binary>
+    </Genotype>
+</ECF>

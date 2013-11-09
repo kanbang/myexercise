@@ -1,0 +1,304 @@
+#include "stdafx.h"
+#include "ShaftExtraPropertyDlg.h"
+#include "../MineGE/ConstData.h"
+
+void ShaftExtraPropertyDataLink::regDatas()
+{
+    linkIntData( _T( "井筒附加属性" ), &sp );
+}
+
+IMPLEMENT_DYNAMIC( ShaftExtraPropertyDlg, CDialog )
+
+ShaftExtraPropertyDlg::ShaftExtraPropertyDlg( CWnd* pParent /*=NULL*/ )
+    : CDialog( ShaftExtraPropertyDlg::IDD, pParent )
+    , m_liftUsage( 0 )
+    , m_liftCoalMethod( 0 )
+    , pSEPM( 0 )
+{
+
+}
+
+ShaftExtraPropertyDlg::~ShaftExtraPropertyDlg()
+{
+    delete pSEPM;
+}
+
+void ShaftExtraPropertyDlg::DoDataExchange( CDataExchange* pDX )
+{
+    CDialog::DoDataExchange( pDX );
+    DDX_Radio( pDX, IDC_NO_USE_RADIO, m_liftUsage );
+    DDX_Radio( pDX, IDC_SKIP_HOIST_RADIO, m_liftCoalMethod );
+}
+
+
+BEGIN_MESSAGE_MAP( ShaftExtraPropertyDlg, CDialog )
+    ON_BN_CLICKED( IDC_NO_USE_RADIO, &ShaftExtraPropertyDlg::OnBnClickedLiftUsageRadio )
+    ON_BN_CLICKED( IDC_LIFT_COAL_RADIO, &ShaftExtraPropertyDlg::OnBnClickedLiftCoalRadio )
+    ON_BN_CLICKED( IDC_LIFT_MATERIAL_RADIO, &ShaftExtraPropertyDlg::OnBnClickedLiftMaterialRadio )
+    ON_BN_CLICKED( IDOK, &ShaftExtraPropertyDlg::OnBnClickedOk )
+END_MESSAGE_MAP()
+
+
+// ShaftExtraPropertyDlg 消息处理程序
+
+// 提升用途切换事件
+void ShaftExtraPropertyDlg::OnBnClickedLiftUsageRadio()
+{
+    UpdateData();
+    switchExtraProperty1( false );
+    switchExtraProperty2( false );
+}
+
+void ShaftExtraPropertyDlg::OnBnClickedLiftCoalRadio()
+{
+    UpdateData();
+    switchExtraProperty1( false );
+    switchExtraProperty2( true );
+}
+
+void ShaftExtraPropertyDlg::OnBnClickedLiftMaterialRadio()
+{
+    UpdateData();
+    switchExtraProperty1( true );
+    switchExtraProperty2( false );
+}
+
+BOOL ShaftExtraPropertyDlg::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+
+    readExtraPropertyFromShaft();
+
+    return TRUE;  // return TRUE unless you set the focus to a control
+    // 异常: OCX 属性页应返回 FALSE
+}
+
+void ShaftExtraPropertyDlg::OnBnClickedOk()
+{
+    writeExtraPropertyToShaft();
+
+    OnOK();
+}
+
+void ShaftExtraPropertyDlg::switchExtraProperty1( bool flag )
+{
+    BOOL nEnable = ( flag ? 1 : 0 );
+    GetDlgItem( IDC_STUFF_CHECK )->EnableWindow( nEnable );
+    GetDlgItem( IDC_MATERIAL_CHECK )->EnableWindow( nEnable );
+    GetDlgItem( IDC_GLADER_CHECK )->EnableWindow( nEnable );
+}
+
+void ShaftExtraPropertyDlg::switchExtraProperty2( bool flag )
+{
+    BOOL nEnable = ( flag ? 1 : 0 );
+    GetDlgItem( IDC_SKIP_HOIST_RADIO )->EnableWindow( nEnable );
+    GetDlgItem( IDC_BELT_CONVEY_RADIO )->EnableWindow( nEnable );
+
+    GetDlgItem( IDC_DUST_PROOF_CHECK )->EnableWindow( nEnable );
+    GetDlgItem( IDC_ENCLOSE_CHECK )->EnableWindow( nEnable );
+    GetDlgItem( IDC_CH4_CHECK )->EnableWindow( nEnable );
+    GetDlgItem( IDC_PIPE_CHECK )->EnableWindow( nEnable );
+    GetDlgItem( IDC_FIRE_ALARM_CHECK )->EnableWindow( nEnable );
+}
+
+void ShaftExtraPropertyDlg::setRelatedShaft( const AcDbObjectId& objId )
+{
+    pSEPM = new ShaftExtraPropertyDataLink();
+    pSEPM->setDataSource( objId );
+    if( !pSEPM->updateData( false ) ) // 更新失败
+    {
+        delete pSEPM;
+        pSEPM = 0;
+    }
+}
+
+void ShaftExtraPropertyDlg::readExtraPropertyFromShaft()
+{
+    if( pSEPM == 0 ) return;
+
+    switchExtraProperty1( false );
+    switchExtraProperty2( false );
+
+    int value = pSEPM->sp;
+    if( value <= 0 ) value = SEP_NO_LIFT_USE;
+
+    // 设置提升用途属性
+    if( ( value & SEP_NO_LIFT_USE ) != 0 )
+    {
+        m_liftUsage = 0;
+    }
+    else if( ( value & SEP_LIFT_COAL ) != 0 )
+    {
+        m_liftUsage = 1;
+    }
+    else if( ( value & SEP_LIFT_MATERIAL_OR_STUFF ) != 0 )
+    {
+        m_liftUsage = 2;
+    }
+    UpdateData( FALSE );
+
+    if( m_liftUsage == 1 )
+    {
+        switchExtraProperty2( true );
+
+        int v1 = ( value & SEP_SKIP_HOIST ); // 判断是否箕斗提升
+        int v2 = ( value & SEP_BELT_CONVEY ); // 判断是否皮带输送
+        if( ( v1 != 0 ) && ( v2 != 0 ) )
+        {
+            MessageBox( _T( "数据不合法!\n一个井筒不能同时使用\n\t【箕斗提升】和【皮带输送】\n提煤方式只能任选其一!" ) );
+            return;
+        }
+        if( v1 != 0 ) m_liftCoalMethod = 0;
+        else if( v2 != 0 ) m_liftCoalMethod = 1;
+        UpdateData( FALSE ); // 更新显示
+
+        readExtraProperty2( value ); // 提取属性，并更新到checkbox
+    }
+    else if( m_liftUsage == 2 )
+    {
+        switchExtraProperty1( true );
+        readExtraProperty1( value );
+    }
+}
+
+void ShaftExtraPropertyDlg::readExtraProperty1( int value )
+{
+    if( ( value & SEP_HAS_GLADER_OR_REPAIR ) != 0 )
+    {
+        getButtonCtrl( IDC_GLADER_CHECK )->SetCheck( BST_CHECKED );
+    }
+    if( ( value & SEP_LIFT_STUFF ) != 0 )
+    {
+        getButtonCtrl( IDC_STUFF_CHECK )->SetCheck( BST_CHECKED );
+    }
+    if( ( value & SEP_LIFT_MATERIAL ) != 0 )
+    {
+        getButtonCtrl( IDC_MATERIAL_CHECK )->SetCheck( BST_CHECKED );
+    }
+}
+
+void ShaftExtraPropertyDlg::readExtraProperty2( int value )
+{
+    if( ( value & SEP_ENCLOSE ) != 0 )
+    {
+        getButtonCtrl( IDC_ENCLOSE_CHECK )->SetCheck( BST_CHECKED );
+    }
+    if( ( value & SEP_DUST_PROOF ) != 0 )
+    {
+        getButtonCtrl( IDC_DUST_PROOF_CHECK )->SetCheck( BST_CHECKED );
+    }
+    if( ( value & SEP_CH4_INTERRUPT ) != 0 )
+    {
+        getButtonCtrl( IDC_CH4_CHECK )->SetCheck( BST_CHECKED );
+    }
+    if( ( value & SEP_FIRE_ALARM ) != 0 )
+    {
+        getButtonCtrl( IDC_FIRE_ALARM_CHECK )->SetCheck( BST_CHECKED );
+    }
+    if( ( value & SEP_FIRE_CONTROL_PIPE ) != 0 )
+    {
+        getButtonCtrl( IDC_PIPE_CHECK )->SetCheck( BST_CHECKED );
+    }
+}
+
+void ShaftExtraPropertyDlg::writeExtraPropertyToShaft()
+{
+    if( pSEPM == 0 ) return;
+
+    UpdateData( TRUE );
+
+    int value = 0;
+    value = ( value | caclLiftUsage() );
+    if( m_liftUsage == 1 )
+    {
+        value = ( value | caclLiftCoalMethod() );
+        value = ( value | caclExtraPropety2() );
+    }
+    else if( m_liftUsage == 2 )
+    {
+        value = ( value | caclExtraPropety1() );
+    }
+    pSEPM->sp = value;
+    pSEPM->updateData( true ); // 更新到井筒的属性数据中
+}
+
+int ShaftExtraPropertyDlg::caclLiftUsage()
+{
+    int value = 0;
+    if( m_liftUsage == 0 )
+    {
+        value = ( value | SEP_NO_LIFT_USE );
+    }
+    else if( m_liftUsage == 1 )
+    {
+        value = ( value | SEP_LIFT_COAL );
+    }
+    else
+    {
+        value = ( value | SEP_LIFT_MATERIAL_OR_STUFF );
+    }
+    return value;
+}
+
+int ShaftExtraPropertyDlg::caclLiftCoalMethod()
+{
+    int value = 0;
+    if( m_liftCoalMethod == 0 )
+    {
+        value = ( value | SEP_SKIP_HOIST );
+    }
+    else
+    {
+        value = ( value | SEP_BELT_CONVEY );
+    }
+    return value;
+}
+
+int ShaftExtraPropertyDlg::caclExtraPropety1()
+{
+    int value = 0;
+    if( getButtonCtrl( IDC_GLADER_CHECK )->GetCheck() == BST_CHECKED )
+    {
+        value = ( value | SEP_HAS_GLADER_OR_REPAIR );
+    }
+    if( getButtonCtrl( IDC_STUFF_CHECK )->GetCheck() == BST_CHECKED )
+    {
+        value = ( value | SEP_LIFT_STUFF );
+    }
+    if( getButtonCtrl( IDC_MATERIAL_CHECK )->GetCheck() == BST_CHECKED )
+    {
+        value = ( value | SEP_LIFT_MATERIAL );
+    }
+    return value;
+}
+
+int ShaftExtraPropertyDlg::caclExtraPropety2()
+{
+    int value = 0;
+    if( getButtonCtrl( IDC_ENCLOSE_CHECK )->GetCheck() == BST_CHECKED )
+    {
+        value = ( value | SEP_ENCLOSE );
+    }
+    if( getButtonCtrl( IDC_DUST_PROOF_CHECK )->GetCheck() == BST_CHECKED )
+    {
+        value = ( value | SEP_DUST_PROOF );
+    }
+    if( getButtonCtrl( IDC_CH4_CHECK )->GetCheck() == BST_CHECKED )
+    {
+        value = ( value | SEP_CH4_INTERRUPT );
+    }
+    if( getButtonCtrl( IDC_FIRE_ALARM_CHECK )->GetCheck() == BST_CHECKED )
+    {
+        value = ( value | SEP_FIRE_ALARM );
+    }
+    if( getButtonCtrl( IDC_PIPE_CHECK )->GetCheck() == BST_CHECKED )
+    {
+        value = ( value | SEP_FIRE_CONTROL_PIPE );
+    }
+    return value;
+}
+
+CButton* ShaftExtraPropertyDlg::getButtonCtrl( long control_id )
+{
+    return ( CButton* )GetDlgItem( control_id );
+}

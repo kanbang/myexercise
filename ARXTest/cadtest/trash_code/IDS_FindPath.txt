@@ -1,0 +1,45 @@
+// IDS代码备份
+// 源文件：IdentifyDiagonalStructure.cpp
+static bool FindPath(UGraph& ug,
+					 UGraph::Node s, UGraph::Node t, 
+					 UGraph::Node u, UGraph::Node v,
+					 UPath& p1, UPath& p2)
+{
+	// 过滤节点
+	typedef UGraph::NodeMap<bool> NodeFilter;
+	NodeFilter nf(ug, true);
+
+	// 过滤节点后的无向图
+	typedef FilterNodes<UGraph, NodeFilter> NFUGraph;
+	NFUGraph afug(ug, nf);
+
+	// 1)将分支的末节点v封闭，查找从u->s的路径
+	nf[v] = false; nf[t] = false;
+
+	Bfs<NFUGraph> aBfs(afug);
+	bool ret1 = aBfs.run(u, s); // u->s
+
+	// 恢复
+	nf[v] = true; nf[t] = true;
+
+	// 查找路径u->s失败
+	if(!ret1) return false;
+
+	// 2)将分支的始节点u封闭，查找从v->t的路径
+	nf[u] = false; nf[s] = false;
+
+	Bfs<NFUGraph> bBfs(afug);
+	bool ret2 = bBfs.run(v, t); // v->t
+
+	// 恢复
+	nf[u] = true; nf[s] = true;
+
+	// 查找路径v->t失败
+	if(!ret2) return false;
+	
+	// 获取路径
+	p1 = aBfs.path(s);
+	p2 = bBfs.path(t);
+
+	return true;
+}

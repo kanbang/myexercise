@@ -1,0 +1,184 @@
+#include "StdAfx.h"
+#include "UIHelper.h"
+
+#include "Resource.h"
+
+#include "../ArxUI/AppMenu.h"
+#include "../ArxUI/AppToolBar.h"
+#include "../ArxUI/ObjectMenu.h"
+
+#include "../ArxCUI/CUIHelper.h"
+
+// CUI文件名称
+#define CUI_FILE_NAME _T("铁煤大兴矿采空区风火瓦斯耦合模拟.cuix")
+// CUI组名
+#define CUI_GROUP_NAME _T("铁煤大兴矿采空区风火瓦斯耦合模拟")
+
+// ffc程序的图标所在文件夹
+#define FFC_APP_BMP_DIR _T("图标")
+
+// ffc程序菜单对象
+AppMenu* global_ffc_app_menu = 0;
+// ffc程序工具栏对象
+AppToolBar* global_ffc_app_toolbar = 0;
+// 工作面右键菜单
+ObjectMenu* global_ffc_app_ws_context_menu = 0;
+
+static void CreateFFCAppMenu(AppMenu& menu)
+{
+	// 加"*"号表示是二级子菜单
+	//加"$"号表示二级子菜单下的菜单条
+
+	menu.AddMenu(_T("铁煤大兴矿采空区风火瓦斯耦合模拟"));
+
+	menu.AddSubMenu(_T("*采空区建模"));
+	menu.AddSubMenu(_T("$巷道"), _T("JL.DrawTunnel"));
+	menu.AddSubMenu(_T("$工作面"), _T("JL.DrawWorkSurface"));
+	menu.AddSubMenu(_T("$风流方向"), _T("JL.DrawDirection"));
+	menu.AddSubMenu(_T("$瓦斯钻孔"), _T("JL.DrawGasPipe"));
+	menu.AddSubMenu(_T("$注氮孔"), _T("JL.DrawNitrogenPipe"));
+	menu.AddSubMenu(_T("$密闭"), _T("JL.DrawObturation"));
+	menu.AddSubMenu(_T("$闭墙"), _T("JL.DrawSandWall"));
+	menu.AddSubMenu(_T("$漏风源"), _T("JL.DrawSourceAirLeak"));
+	menu.AddSubMenu(_T("$漏风汇"), _T("JL.DrawSinkAirLeak"));
+
+	menu.AddSubMenu(_T("采空区瓦斯涌出"), _T("JL.ShowGoafGasDlg"));
+	menu.AddSubMenu(_T("模拟采空区渗透弥散过程"), _T("JL.ShowFFCDlg"));
+
+	menu.AddSubMenu(_T("*辅助工具"));
+	menu.AddSubMenu(_T("$自动标注风流方向"), _T("JL.AutoDirection"));
+	menu.AddSubMenu(_T("$风流方向反向"), _T("JL.ReverseDirection"));
+	menu.AddSubMenu(_T("$切换快速输入"), _T("JL.SwitchMonitorPickFirst"));
+
+	menu.CreateMenus();
+}
+
+static CString GetAppPathDir()
+{
+	TCHAR szMoudlePath[_MAX_PATH];
+	GetModuleFileName(_hdllInstance, szMoudlePath, _MAX_PATH);
+
+	TCHAR drive[_MAX_DRIVE];
+	TCHAR dir[_MAX_DIR];
+	_tsplitpath(szMoudlePath, drive, dir, NULL, NULL);
+
+	TCHAR path[_MAX_PATH];
+	_tmakepath(path, drive, dir, NULL, NULL);
+
+	return CString(path);
+}
+
+// 构造图标文件夹路径
+// 假设放在当前arx模块路径下的"图标"文件夹中
+static CString BuildBmpDirPath(const CString& bmpDir)
+{
+	CString str;
+	str.Format(_T("%s%s\\"), GetAppPathDir(), bmpDir);
+	return str;
+}
+
+static void CreateFFCAppToolBar(AppToolBar& toolbar)
+{
+	toolbar.AddToolBar(_T("采空区风或瓦斯耦合模拟"));
+	toolbar.AddToolButton(_T("巷道"), _T("JL.DrawTunnel"), _T("绘制巷道"), _T("巷道.bmp"));
+	toolbar.AddToolButton(_T("工作面"), _T("JL.DrawWorkSurface"), _T("绘制工作面"), _T("工作面.bmp"));
+	toolbar.AddToolButton(_T("风流方向"), _T("JL.DrawDirection"), _T("绘制风流方向"), _T("风流方向.bmp"));
+	toolbar.AddToolButton(_T("瓦斯钻孔"), _T("JL.DrawGasPipe"), _T("绘制瓦斯钻孔"), _T("瓦斯钻孔.bmp"));
+	toolbar.AddToolButton(_T("注氮孔"), _T("JL.DrawNitrogenPipe"), _T("绘制注氮孔"), _T("注氮孔.bmp"));
+	toolbar.AddToolButton(_T("密闭"), _T("JL.DrawObturation"), _T("绘制密闭"), _T("密闭.bmp"));
+	toolbar.AddToolButton(_T("闭墙"), _T("JL.DrawSandWall"), _T("绘制闭墙"), _T("闭墙.bmp"));
+	toolbar.AddSeparator();
+	toolbar.AddToolButton(_T("漏风源"), _T("JL.DrawSourceAirLeak"), _T("绘制漏风源"), _T("漏风源.bmp"));
+	toolbar.AddToolButton(_T("漏风汇"), _T("JL.DrawSinkAirLeak"), _T("绘制漏风汇"), _T("漏风汇.bmp"));	
+	toolbar.AddSeparator();
+	toolbar.AddToolButton(_T("自动标注风流方向"), _T("JL.AutoDirection"), _T("自动标注风流方向"), _T("自动标注风流方向.bmp"));
+	toolbar.AddToolButton(_T("风流方向反向"), _T("JL.ReverseDirection"), _T("风流方向反向"), _T("风流方向反向.bmp"));
+	toolbar.AddToolButton(_T("切换快速输入"), _T("JL.SwitchMonitorPickFirst"), _T("切换快速输入"), _T("切换快速输入.bmp"));
+	toolbar.AddToolButton(_T("设置Gambit几何建模输出巷道宽度"), _T("JL.ShowGambitParamDlg "), _T("设置Gambit几何建模输出巷道宽度"), _T("设置Gambit几何建模输出巷道宽度.bmp"));
+
+	// 构造图标文件夹路径
+	CString bmpDir = BuildBmpDirPath(FFC_APP_BMP_DIR);
+	//acutPrintf(_T("\n图标文件夹路径: %s"), bmpDir);
+
+	toolbar.CreateToolBars(bmpDir);
+}
+
+static ObjectMenu* CreateWsObjectContextMenu(const void* appId)
+{
+	// 关联菜单资源ID
+	ObjectMenu* pObjMenu = new ObjectMenu(IDR_MENU_WS_OBJECT);
+	// 注册命令和ID
+	pObjMenu->RegMenuCmd(ID_MENU_ADVANCE_WS, _T("JL.AdvanceWS"));
+	// 设置对象类型
+	pObjMenu->SetObjectType(_T("WorkSurface"));
+
+	// 创建对象菜单
+	pObjMenu->CreateObjectMenu(appId);
+
+	return pObjMenu;
+}
+
+void UIHelper::RegAppMenu()
+{
+	if(global_ffc_app_menu == 0)
+	{
+		global_ffc_app_menu = new AppMenu();
+		CreateFFCAppMenu(*global_ffc_app_menu);
+	}
+}
+
+void UIHelper::UnRegAppMenu()
+{
+	if(global_ffc_app_menu != 0)
+	{
+		// 删除对象自动卸载菜单
+		delete global_ffc_app_menu;
+		global_ffc_app_menu = 0;
+	}	
+}
+
+void UIHelper::RegAppToolBar()
+{
+	if(global_ffc_app_toolbar == 0)
+	{
+		global_ffc_app_toolbar = new AppToolBar();
+		CreateFFCAppToolBar(*global_ffc_app_toolbar);
+	}
+}
+
+void UIHelper::UnRegAppToolBar()
+{
+	if(global_ffc_app_toolbar != 0)
+	{
+		delete global_ffc_app_toolbar;
+		global_ffc_app_toolbar = 0;
+	}
+}
+
+void UIHelper::RegObjectContextMenu(const void *appId)
+{
+	if(global_ffc_app_ws_context_menu == 0)
+	{
+		global_ffc_app_ws_context_menu = CreateWsObjectContextMenu(appId);
+	}
+}
+
+void UIHelper::UnRegObjectContextMenu()
+{
+	if(global_ffc_app_ws_context_menu != 0)
+	{
+		delete global_ffc_app_ws_context_menu;
+		global_ffc_app_ws_context_menu = 0;
+	}	
+}
+
+void UIHelper::LoadCui()
+{
+	CUIHelper::UnLoadPartialMenuUseCom(CUI_GROUP_NAME);
+	CUIHelper::LoadPartialMenuUseCom(CUI_FILE_NAME, CUI_GROUP_NAME);
+}
+
+void UIHelper::UnloadCui()
+{
+	CUIHelper::UnLoadPartialMenuUseCom(CUI_GROUP_NAME);
+}

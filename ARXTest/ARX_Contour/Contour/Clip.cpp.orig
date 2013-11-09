@@ -1,0 +1,389 @@
+#include "Contour.h"
+#include "GeoAlgo.h"
+#include <cmath>
+#include <algorithm>
+#include <cassert>
+
+static void PolygonIntersect(const PointArray& bpts, const DT_Point& p1, const DT_Point& p2, PointArray& pts)
+{
+	int n = bpts.size();
+	for(int i=0;i<n-1;i++)
+	{
+		DT_Point p;
+		if(1 == LineIntersect(bpts[i], bpts[i+1], p1, p2, p))
+		{
+			if(!IsPointEqual(p, p1) && !IsPointEqual(p, p2))
+			{
+				pts.push_back(p);
+			}
+		}
+	}
+}
+
+// 向量c->d在向量a->b的投影长度(就是点乘结果）
+double projectLength(const DT_Point& a, const DT_Point& b, const DT_Point& c, const DT_Point& d)
+{
+	double x1 = b.x - a.x;
+	double y1 = b.y - a.y;
+	double x2 = d.x - c.x;
+	double y2 = d.y - c.y;
+	return x1*x2+y1*y2;
+}
+
+class ProjectLengthSorter
+{
+public:
+	ProjectLengthSorter(const DT_Point& a_, const DT_Point& b_) : a(a_), b(b_) {}
+	bool operator()(const DT_Point& p1, const DT_Point& p2)
+	{
+		// a->b 与 a->p1
+		double L1 = projectLength(a, b, a, p1);
+		// a->b 与 a->p2
+		double L2 = projectLength(a, b, a, p2);
+		return L1 < L2;
+	}
+
+private:
+	DT_Point a, b;
+	
+};
+// 交点在线段上投影排序p1->p2
+static void SortByDir(const DT_Point& p1, const DT_Point& p2, PointArray& pts)
+{
+	std::sort(pts.begin(), pts.end(), ProjectLengthSorter(p1, p2));
+}
+
+// 可能分割成多段等值线
+static void PolygonClip(const PointArray& bpts, const PointArray& cnpts, PointArray& clip_cnpts, IntArray& clip_info)
+{
+	//IntArray node_in_polyon;	
+	int n = cnpts.size();
+	//for(int i=0;i<n;i++)
+	//{
+	//	node_in_polyon.push_back(IsPointInPolygon(cnpts[i], bpts)?1:0);
+	//}
+
+	double z = cnpts.front().z;
+
+	// 计算多边形与等值线的交点, 并扩展等值线
+	PointArray ext_cnpts;
+	// 记录等值线线段状态(0 - 不在多边形内 1 - 在多边形)
+	IntArray ext_edge_in_polyon;
+	for(int i=0;i<n-1;i++)
+	{
+		ext_cnpts.push_back(cnpts[i]);
+
+		// 求交点
+		PointArray pts;
+		PolygonIntersect(bpts, cnpts[i], cnpts[i+1], pts);
+
+		// 有交点
+		if(!pts.empty())
+		{
+			for(int j=0;j<(int)pts.size();j++)
+			{
+				pts[j].z = z;
+			}
+			// 排序
+			SortByDir(cnpts[i], cnpts[i+1], pts);
+
+			std::copy(pts.begin(), pts.end(), std::back_inserter(ext_cnpts));
+
+			DT_Point tp = cnpts[i];
+			
+			pts.push_back(cnpts[i+1]);
+			for(int j=0;j<(int)pts.size();j++)
+			{
+				DT_Point p = MidPoint(tp, pts[j]);
+				ext_edge_in_polyon.push_back(IsPointInPolygon(p, bpts)?1:0);
+				tp = pts[j];
+			}
+		}
+		else
+		{
+			DT_Point p = MidPoint(cnpts[i], cnpts[i+1]);
+			ext_edge_in_polyon.push_back(IsPointInPolygon(p, bpts)?1:0);
+			//ext_edge_in_polyon.push_back(node_in_polyon[i]);
+		}
+
+	}
+	ext_cnpts.push_back(cnpts.back());
+
+	assert(ext_cnpts.size()-1 == ext_edge_in_polyon.size());
+	
+	/*int*/ n = ext_edge_in_polyon.size();
+
+	// 统计1的个数(即在多边形内的线段个数)
+	int scount = (int)std::count(ext_edge_in_polyon.begin(), ext_edge_in_polyon.end(), 1);
+	if(scount == 0)
+	{
+		// 线段都不在多边形内
+		return;
+	}
+	else if(scount == n)
+	{
+		// 线段都在多边形内
+		std::copy(ext_cnpts.begin(), ext_cnpts.end(), std::back_inserter(clip_cnpts));
+		clip_info.push_back(ext_cnpts.size());
+		return;
+	}
+
+	int m = n;
+	// 如果是闭合等值线且位于边界多边形内
+	if(IsPointEqual(cnpts.front(), cnpts.back()) /*&& node_in_polyon[0] == 1*/)
+	{
+		// 反向搜索开始位置
+		for(int i=n-1;i>=0;i--)
+		{
+			if(ext_edge_in_polyon[i] == 0)
+			{
+				m = (i+1)%n; break;
+			}
+		}
+	}
+	
+	int count = 0;
+	for(int i=m;i<n;i++)
+	{
+		clip_cnpts.push_back(ext_cnpts[i]);
+		count++;
+	}
+
+	for(int i=0;i<m;i++)
+	{
+		if(ext_edge_in_polyon[i] == 1)
+		{
+			clip_cnpts.push_back(ext_cnpts[i]);
+			count++;
+		}
+		else if(count > 0)
+		{
+			clip_cnpts.push_back(ext_cnpts[i]);
+			count++;
+
+			clip_info.push_back(count);
+			count = 0;
+		}
+	}
+	if(count > 0)
+	{
+		clip_info.push_back(count);
+	}
+}
+
+void test_yy()
+{
+	DT_Point a, b ,c ,d;
+	DT_Point p;
+	a.x = 0; a.y = 0;
+	b.x = 1; b.y = 1;
+	c.x = -1; c.y = 0;
+	d.x = 0, d.y = -1;
+
+	int ret = LineIntersect(a, b, c, d, p);
+}
+
+void GenPolyon(PointArray& bpts)
+{
+	double a[6*2][2] = {
+		{-1402.5880,  721.3415},
+		{-1502.5880,  721.3415},
+		{-1502.5880,  821.3415},
+		{-1452.5880,  771.3415},
+		{-1402.5880,  821.3415},
+		{-1402.5880,  721.3415}
+	};
+
+	for(int i=0;i<6;i++)
+	{
+		DT_Point p;
+		p.x = a[i][0]; p.y = a[i][1];
+		bpts.push_back(p);
+	}
+}
+
+void GenLine1(PointArray& cnpts)
+{
+	double b[5][2] = {
+		{-1417.2550,  790.4142},
+		{-1487.9209,  790.4142},
+		{-1487.9209,  814.5787},
+		{-1417.2550,  814.5787},
+		{-1417.2550,  790.4142}
+	};
+	
+	for(int i=0;i<5;i++)
+	{
+		DT_Point p;
+		p.x = b[i][0]; p.y = b[i][1];
+		cnpts.push_back(p);
+	}
+}
+
+void GenLine2(PointArray& cnpts)
+{
+	double c[2][2] = {
+		-1487.2525,  781.3073,
+		-1374.8068,  773.0214
+	};
+
+	for(int i=0;i<2;i++)
+	{
+		DT_Point p;
+		p.x = c[i][0]; p.y = c[i][1];
+		cnpts.push_back(p);
+	}
+}
+
+void test_zz()
+{
+	PointArray bpts;
+	GenPolyon(bpts);
+
+	PointArray cnpts;
+	GenLine1(cnpts);
+	//GenLine2(cnpts);
+
+	PointArray clip_cnpts;
+	IntArray clip_info;
+	PolygonClip(bpts, cnpts, clip_cnpts, clip_info);
+}
+
+// p1->p2 方向延长
+static void ExtendLineOneSide(DT_Point& p1, DT_Point& p2, double d)
+{
+	double L = Distance(p1, p2);
+	double cx = (p2.x - p1.x)/L;
+	double sy = (p2.y - p1.y)/L;
+
+	p1.x = p1.x + 0.5*L*cx;
+	p1.y = p1.y + 0.5*L*sy;
+
+	p2.x = p2.x + d*cx;
+	p2.y = p2.y + d*sy;
+}
+
+// p1->p2直线与多边形的交点
+static bool IntersectPolygonWithExtendLine(const PointArray& bpts, const DT_Point& p1, const DT_Point& p2, DT_Point& p)
+{
+	DT_Point a = p1, b = p2;
+	ExtendLineOneSide(a, b, 10000); // 延长直线距离
+
+	PointArray pts;
+	PolygonIntersect(bpts, a, b, pts);
+
+	bool ret = pts.empty();
+	if(!ret)
+	{
+		double z = p.z;
+		SortByDir(a, b, pts);
+		p = pts.front();
+		p.z = z;
+	}
+	return ret;
+}
+
+// 裁剪后部分等值线会脱离边界
+// 进行一下微调
+static void TrimContour(
+	/* 追踪踪得到的等值线点 */ 
+	PointArray& cnpts, 
+	/* 记录等值线信息(个数以及索引位置) */ 
+	const ContourArray& cna, 
+	/* 边界多边形 */ 
+	const PointArray& bpts)
+{
+	for(int i=0;i<(int)cna.size();i++)
+	{
+		// 定位到第i条等值线位置
+		int s = 0;
+		for(int j=0;j<i;j++)
+		{
+			s += cna[j].cnpts_num;
+		}
+		int t = s + cna[i].cnpts_num;
+
+		if(t > s && cna[i].dir == 0)
+		{
+			IntersectPolygonWithExtendLine(bpts, cnpts[s+1], cnpts[s], cnpts[s]);
+			IntersectPolygonWithExtendLine(bpts, cnpts[t-2], cnpts[t-1], cnpts[t-1]);
+		}
+	}
+}
+
+
+static void ClipContour(
+	/* 追踪踪得到的等值线点 */ 
+	const PointArray& cnpts, 
+	/* 记录等值线信息(个数以及索引位置) */ 
+	const ContourArray& cna, 
+	/* 边界多边形 */ 
+	const PointArray& bpts, 
+	/* 记录裁剪后的等值线和信息 */ 
+	PointArray& all_cnpts, 
+	ContourArray& all_cna)
+{
+	for(int i=0;i<(int)cna.size();i++)
+	{
+		// 定位到第i条等值线位置
+		int s = 0;
+		for(int j=0;j<i;j++)
+		{
+			s += cna[j].cnpts_num;
+		}
+		int t = s + cna[i].cnpts_num;
+
+		if(t>s)
+		{
+			PointArray pa;
+			for(int j=s;j<t;j++)
+			{
+				pa.push_back(cnpts[j]);
+			}
+
+			PointArray clip_pa;
+			IntArray clip_info;
+			PolygonClip(bpts, pa, clip_pa, clip_info);
+			std::copy(clip_pa.begin(), clip_pa.end(), std::back_inserter(all_cnpts));
+
+			DT_Contour cnt = cna[i];
+			if(cnt.dir != 0 && cnt.cnpts_num < cna[i].cnpts_num)
+			{
+				cnt.dir = 0; // 闭合等值线被多边形分割成开放等值线
+			}
+			for(int k=0;k<(int)clip_info.size();k++)
+			{
+				cnt.cnpts_num = clip_info[k];
+				all_cna.push_back(cnt);
+			}
+		}
+		else
+		{
+			all_cna.push_back(cna[i]);
+		}
+	}
+}
+
+void Clip( 
+	/* 追踪踪得到的等值线点 */ 
+	const PointArray& cnpts, 
+	/* 记录等值线信息(个数以及索引位置) */ 
+	const ContourArray& cna, 
+	/* 边界多边形 */ 
+	const PointArray& bpts, 
+	/* 记录裁剪后的等值线和信息 */ 
+	PointArray& all_cnpts, 
+	ContourArray& all_cna)
+{
+	//test_yy();
+	//test_zz();
+	PointArray bounds;
+	std::copy(bpts.begin(), bpts.end(), std::back_inserter(bounds));
+	if(!IsPointEqual(bounds.front(), bounds.back()))
+	{
+		bounds.push_back(bounds.front());
+	}
+
+	ClipContour(cnpts, cna, bounds, all_cnpts, all_cna);
+	TrimContour(all_cnpts, all_cna, bounds);
+}

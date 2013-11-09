@@ -1,0 +1,102 @@
+#include "Contour.h"
+
+extern "C" {
+#include "triangle.h"
+};
+
+void CDT_LIB(
+    const PointArray& pts,
+    const EdgeArray& segments,
+    const PointArray& holes,
+    EdgeArray& ea,
+    TriangleArray& ta )
+{
+    /* 初始化输入参数 */
+    triangulateio in;
+
+    // 初始化pointlist
+    in.pointlist = ( REAL* )trimalloc( pts.size() * 2 * sizeof( REAL ) );
+    in.numberofpoints = pts.size();
+    for( int i = 0; i < ( int )pts.size(); i++ )
+    {
+        in.pointlist[2 * i] = pts[i].x;
+        in.pointlist[2 * i + 1] = pts[i].y;
+    }
+    in.pointmarkerlist = 0;
+    in.pointattributelist = 0;
+    in.numberofpointattributes = 0;
+
+    // 初始化segmentlist(使用-p开关)
+    if( segments.empty() )
+    {
+        in.segmentlist = 0;
+        in.numberofsegments = 0;
+    }
+    else
+    {
+        in.segmentlist = ( int* )trimalloc( segments.size() * 2 * sizeof( int ) );
+        in.numberofsegments = segments.size();
+        for( int i = 0; i < ( int )segments.size(); i++ )
+        {
+            in.segmentlist[2 * i] = segments[i].s;
+            in.segmentlist[2 * i + 1] = segments[i].t;
+        }
+    }
+    in.segmentmarkerlist = 0;
+
+    // 初始化holelist
+    if( holes.empty() )
+    {
+        in.holelist = 0;
+        in.numberofholes = 0;
+    }
+    else
+    {
+        in.holelist = ( REAL* )trimalloc( holes.size() * 2 * sizeof( REAL ) );
+        in.numberofholes = holes.size();
+        for( int i = 0; i < ( int )holes.size(); i++ )
+        {
+            in.holelist[2 * i] = holes[i].x;
+            in.holelist[2 * i + 1] = holes[i].y;
+        }
+    }
+    // 初始化regionlist
+    in.regionlist = 0;
+    in.numberofregions = 0;
+
+    /* 初始化输出参数 */
+    triangulateio out;
+    out.trianglelist = 0;
+    out.edgelist = 0;
+
+    // 调用triangle
+    triangulate( "pceBPNz_Q", &in, &out, 0 );
+
+    // 读取返回的计算结果
+    if( out.trianglelist != 0 )
+    {
+        for( int i = 0; i < out.numberoftriangles; i++ )
+        {
+            DT_Triangle triangle = {out.trianglelist[3 * i],
+                                    out.trianglelist[3 * i + 1],
+                                    out.trianglelist[3 * i + 2]
+                                   };
+            ta.push_back( triangle );
+        }
+    }
+    if( out.edgelist != 0 )
+    {
+        for( int i = 0; i < out.numberofedges; i++ )
+        {
+            DT_Edge edge = {out.edgelist[2 * i], out.edgelist[2 * i + 1]};
+            ea.push_back( edge );
+        }
+    }
+
+    // 销毁内存
+    trifree( ( VOID* )in.pointlist );
+    trifree( ( VOID* )in.segmentlist );
+    trifree( ( VOID* )in.holelist );
+    trifree( ( VOID* )out.trianglelist );
+    trifree( ( VOID* )out.edgelist );
+}

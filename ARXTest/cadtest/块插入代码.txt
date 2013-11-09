@@ -1,0 +1,110 @@
+// 根据块名称获取块定义id
+static AcDbObjectId GetBlockDefinitionByName(const CString& blockName)
+{
+	AcDbBlockTable *pBlockTable;
+	acdbHostApplicationServices()->workingDatabase()->getSymbolTable(pBlockTable, AcDb::kForRead);
+
+	AcDbBlockTableRecord *pBlockTableRecord;
+	Acad::ErrorStatus es = pBlockTable->getAt(blockName, pBlockTableRecord, AcDb::kForRead);
+	pBlockTable->close();
+
+	AcDbObjectId objId;
+	if(es == Acad::eOk)
+	{
+		objId = pBlockTableRecord->objectId();
+		pBlockTableRecord->close();
+	}
+	return objId;
+}
+
+static void FillAttribute(const AcStringArray& names, const AcStringArray& attValues, AcDbBlockReference& bRef)
+{
+	// 模仿cad的块插入过程
+	// 查找所有的属性定义，并以之为模板，创建属性对象
+	// 并添加到AcDbBlockReference中
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	AcDbObject* pObj;
+	if(Acad::eOk != pTrans->getObject(pObj, bRef.blockTableRecord(), AcDb::kForRead))
+	{
+		actrTransactionManager->abortTransaction();
+		return;
+	}
+
+	AcDbBlockTableRecord* pBTR = AcDbBlockTableRecord::cast(pObj);
+	// BUG：不能调用hasAttributeDefinitions()方法
+	// 调用之后，如果没有在块编辑器中对块进行修改，
+	// 那么进行移动、夹点编辑等操作，没有动态显示效果
+	//if(!pBTR->hasAttributeDefinitions())
+	//{
+	//	// 没有属性定义
+	//	acutPrintf(_T("\n没有属性定义"));
+	//	actrTransactionManager->abortTransaction();
+	//	return;
+	//}
+	
+	AcDbBlockTableRecordIterator* pIterator;
+	if(Acad::eOk != pBTR->newIterator(pIterator))
+	{
+		actrTransactionManager->abortTransaction();
+		return;
+	}
+
+	AcGeMatrix3d blkXform = bRef.blockTransform();
+
+	// 遍历块中的图元，查找AcDbAttributeDefinition
+	for(pIterator->start(true); !pIterator->done(); pIterator->step(true))
+	{
+		AcDbObjectId objId;
+		if(Acad::eOk != pIterator->getEntityId(objId)) continue;
+		if(Acad::eOk != pTrans->getObject(pObj, objId, AcDb::kForRead)) continue;
+		AcDbAttributeDefinition* pAttDef = AcDbAttributeDefinition::cast(pObj);
+		if(pAttDef == 0) continue;
+
+		// 获取标签名称
+		ACHAR* pTag = pAttDef->tag();
+		int pos = names.find(pTag);
+		if(pos != -1)
+		{
+			// 创建属性
+			AcDbAttribute* pAtt = new AcDbAttribute();
+			pAtt->setAttributeFromBlock(pAttDef, blkXform);
+			pAtt->convertIntoMTextAttribute(Adesk::kTrue);
+			
+			/*
+			 * 属性的图层特性与属性定义保持一致，使用setPropertiesFrom函数实现
+			 * 属性的可见性与属性定义一致
+			 * 属性的高度和角度与属性定义一致
+			 * 属性的插入点：属性定义的插入点与块参照插入点的矢量和
+			 * 属性的标记文字、提示文字与属性定义保持一致
+			 */
+			/*
+			pAtt->setPropertiesFrom(pAttDef); 
+			pAtt->setInvisible(pAttDef->isInvisible()); 
+			AcGePoint3d ptBase = pAttDef->position(); 
+			ptBase += bRef.position().asVector(); 
+			pAtt->setPosition(ptBase); 
+			pAtt->setHeight(pAttDef->height()); 
+			pAtt->setRotation(pAttDef->rotation());
+			ACHAR* pPrompt = pAttDef->prompt();
+			acutDelString(pPrompt); 
+			*/
+
+			// 设置属性数据
+			pAtt->setTextString(attValues[pos].kACharPtr());
+			//acutPrintf(_T("\n添加属性%s，值:%s"), pTag, attValues[pos].kACharPtr());
+
+			// 添加属性到AcDbBlockReference中
+			bRef.appendAttribute(pAtt);
+		}
+		acutDelString(pTag);
+	}
+	delete pIterator;
+	actrTransactionManager->endTransaction();
+}
+
+static AcGeMatrix3d GetBlockTransformMatrix(const AcDbObjectId& blockId, const AcGePoint3d& insertPt, double angle)
+{
+	AcDbBlockReference bRef(insertPt, blockId);
+	bRef.setRotation(angle);
+	return bRef.blockTransform();
+}

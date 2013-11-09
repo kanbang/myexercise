@@ -1,0 +1,77 @@
+#include "StdAfx.h"
+#include "WorkSurface.h"
+
+Adesk::UInt32 WorkSurface::kCurrentVersionNumber = 1 ;
+
+ACRX_DXF_DEFINE_MEMBERS (
+    WorkSurface, LinkedGE,
+    AcDb::kDHL_CURRENT, AcDb::kMReleaseCurrent,
+    AcDbProxyEntity::kNoOperation,
+    回采工作面, DEFGEAPP
+)
+
+WorkSurface::WorkSurface () : LinkedGE (), m_clockWise( true )
+{
+}
+
+WorkSurface::WorkSurface( const AcGePoint3d& startPt, const AcGePoint3d& endPt ) : LinkedGE( startPt, endPt )
+{
+
+}
+
+WorkSurface::~WorkSurface ()
+{
+}
+
+void WorkSurface::pushKeyParamToWriter( DrawParamWriter& writer ) const
+{
+    LinkedGE::pushKeyParamToWriter( writer );
+    writer.writeBoolean( m_clockWise );
+}
+
+void WorkSurface::pullKeyParamFromReader( DrawParamReader& reader )
+{
+    LinkedGE::pullKeyParamFromReader( reader );
+    reader.readBoolean( m_clockWise );
+}
+
+bool WorkSurface::getArrowDir() const
+{
+    assertReadEnabled();
+    return m_clockWise;
+}
+
+Acad::ErrorStatus WorkSurface::dwgOutFields ( AcDbDwgFiler* pFiler ) const
+{
+    assertReadEnabled () ;
+    //----- Save parent class information first.
+    Acad::ErrorStatus es = LinkedGE::dwgOutFields ( pFiler ) ;
+    if ( es != Acad::eOk )
+        return ( es ) ;
+    //----- Object version number needs to be saved first
+    if ( ( es = pFiler->writeUInt32 ( WorkSurface::kCurrentVersionNumber ) ) != Acad::eOk )
+        return ( es ) ;
+
+    pFiler->writeBool( m_clockWise );
+
+    return ( pFiler->filerStatus () ) ;
+}
+
+Acad::ErrorStatus WorkSurface::dwgInFields ( AcDbDwgFiler* pFiler )
+{
+    assertWriteEnabled () ;
+    //----- Read parent class information first.
+    Acad::ErrorStatus es = LinkedGE::dwgInFields ( pFiler ) ;
+    if ( es != Acad::eOk )
+        return ( es ) ;
+    //----- Object version number needs to be read first
+    Adesk::UInt32 version = 0 ;
+    if ( ( es = pFiler->readUInt32 ( &version ) ) != Acad::eOk )
+        return ( es ) ;
+    if ( version > WorkSurface::kCurrentVersionNumber )
+        return ( Acad::eMakeMeProxy ) ;
+
+    pFiler->readBool( &m_clockWise );
+
+    return ( pFiler->filerStatus () ) ;
+}

@@ -1,0 +1,17 @@
+#include "stdafx.h"
+
+#include "ADCalNetwork.h"
+#pragma comment(lib, "DLJCalNetWork.lib")
+
+extern "C" __declspec( dllexport ) void Test()
+{
+    CADCalNetwork o;
+    if( o.CalNetwork( "d:\\test.mdb" ) )
+    {
+        AfxMessageBox( _T( "解算成功" ) );
+    }
+    else
+    {
+        AfxMessageBox( _T( "解算失败" ) );
+    }
+}

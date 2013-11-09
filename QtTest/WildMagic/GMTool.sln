@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GMTool", "GMTool\GMTool.vcproj", "{81156F59-B1FD-4C42-A3C1-2C81BC7D3D7E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Wm5Mathematics", "Wm5Mathematics\Wm5Mathematics.vcproj", "{2FF643E9-AFB6-47B1-9190-B42F9D24DC49}"
+	ProjectSection(ProjectDependencies) = postProject
+		{31570412-FEF7-44C2-9112-E05FA5C6109A} = {31570412-FEF7-44C2-9112-E05FA5C6109A}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Wm5Core", "Wm5Core\Wm5Core.vcproj", "{31570412-FEF7-44C2-9112-E05FA5C6109A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{81156F59-B1FD-4C42-A3C1-2C81BC7D3D7E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{81156F59-B1FD-4C42-A3C1-2C81BC7D3D7E}.Debug|Win32.Build.0 = Debug|Win32
+		{81156F59-B1FD-4C42-A3C1-2C81BC7D3D7E}.Release|Win32.ActiveCfg = Release|Win32
+		{81156F59-B1FD-4C42-A3C1-2C81BC7D3D7E}.Release|Win32.Build.0 = Release|Win32
+		{2FF643E9-AFB6-47B1-9190-B42F9D24DC49}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2FF643E9-AFB6-47B1-9190-B42F9D24DC49}.Debug|Win32.Build.0 = Debug|Win32
+		{2FF643E9-AFB6-47B1-9190-B42F9D24DC49}.Release|Win32.ActiveCfg = Release|Win32
+		{2FF643E9-AFB6-47B1-9190-B42F9D24DC49}.Release|Win32.Build.0 = Release|Win32
+		{31570412-FEF7-44C2-9112-E05FA5C6109A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{31570412-FEF7-44C2-9112-E05FA5C6109A}.Debug|Win32.Build.0 = Debug|Win32
+		{31570412-FEF7-44C2-9112-E05FA5C6109A}.Release|Win32.ActiveCfg = Release|Win32
+		{31570412-FEF7-44C2-9112-E05FA5C6109A}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

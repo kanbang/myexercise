@@ -1,0 +1,107 @@
+//
+// 断层数据加载和处理
+// 此处使用了类对象数组， 请注意使用方法
+// CopyRight 2000(R) by GriSoft, All right reserved
+
+#include "stdafx.h"
+#include "Triangle.h"
+
+//设置成员变量m_faults
+//把断层数据文件中的断层数据写入成员数组m_faults中
+void CTriangle::Set_faults( CString filename )
+{
+    double x, y;
+    double no;
+    bool bExist( false );
+    int theIndex;
+
+    FILE* fp;
+
+    if ( ( fp = fopen( filename, "r" ) ) == NULL )
+    {
+        AfxMessageBox( "打开文件出错" );
+        return;
+    }
+
+    m_faults.RemoveAll();
+
+    while( !feof( fp ) )
+    {
+        if ( fscanf( fp, "%lf %lf %lf", &x, &y, &no ) != 3 ) break;
+
+        //检验是否存在标号为id的断层线
+        bExist = false;
+        for ( int i = 0; i < m_faults.GetSize(); i++ )
+        {
+            int meno = ( ( CFault* )m_faults[i] )->no;
+            if( meno == no )
+            {
+                bExist = true;
+                theIndex = i;
+                break;
+            }
+        }
+        if ( bExist == true ) //如果存在，则在那条断层线中添加一个点
+        {
+            ( ( CFault* )m_faults[theIndex] )->x.Add( x );
+            ( ( CFault* )m_faults[theIndex] )->y.Add( y );
+            ( ( CFault* )m_faults[theIndex] )->z.Add( 0 );
+            ( ( ( CFault* )m_faults[theIndex] )->iDots )++;
+        }
+        else	//不存在标号为id的断层线，则添加一条新的断层线
+        {
+            m_faults.Add( new CFault() );
+            ( ( CFault* )m_faults[m_faults.GetUpperBound()] )->no = ( int )no;
+            ( ( CFault* )m_faults[m_faults.GetUpperBound()] )->x.Add( x );
+            ( ( CFault* )m_faults[m_faults.GetUpperBound()] )->y.Add( y );
+            ( ( CFault* )m_faults[m_faults.GetUpperBound()] )->z.Add( 0 );
+            ( ( ( CFault* )m_faults[m_faults.GetUpperBound()] )->iDots ) = 1;
+        }
+    }
+    fclose( fp );
+    /*	int k = m_faults.GetSize();
+    	for (int L=0; L<k; L++)
+    	{
+    		int N = ((CFault *)m_faults[L])->x.GetSize();
+    		for (int M=0; M<N; M++)
+    		{
+    			double xx = ((CFault *)m_faults[L])->x[M];
+    			double yy = ((CFault *)m_faults[L])->y[M];
+    			double nono =((CFault *)m_faults[L])->no;
+    		}
+    	}
+    */
+}
+
+
+// 画所有的断层线。
+// 如果参数bSmooth为true,则同时平滑断层线，否则，直接把断层线数据连在一起
+void CTriangle::DrawFaults( bool bSmooth, CDC* dc )
+{
+    int faultsCount, xyCount;
+    int i, k;
+    CPoint* ptPoint;
+    faultsCount = m_faults.GetSize();
+    const int DofCircle = 500;
+
+    CPen* thepen = new CPen( 0, 1, RGB( 255, 0, 0 ) );
+    CPen* oldpen = dc->SelectObject( thepen );
+    dc->SelectStockObject( HOLLOW_BRUSH );
+
+    for (	i = 0; i < faultsCount; i++ )
+    {
+        xyCount = ( ( CFault* )m_faults[i] )->x.GetSize();
+        ptPoint = new CPoint[xyCount];
+        for ( k = 0; k < xyCount; k++ )
+        {
+            ptPoint[k].x = ( ( CFault* )m_faults[i] )->x[k] - xmin;
+            ptPoint[k].y = ( ( CFault* )m_faults[i] )->y[k] - ymin;
+            dc->Ellipse( ptPoint[k].x - DofCircle / 2, ptPoint[k].y - DofCircle / 2, ptPoint[k].x + DofCircle / 2, ptPoint[k].y + DofCircle / 2 );
+        }
+        dc->Polygon( ptPoint, xyCount );
+        delete []ptPoint;
+    }
+
+    dc->SelectObject( oldpen );
+    delete thepen;
+}

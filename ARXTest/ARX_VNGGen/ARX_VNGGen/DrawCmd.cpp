@@ -1,0 +1,136 @@
+#include "StdAfx.h"
+#include "DrawCmd.h"
+
+#include "../VNG_GE/VNG_Node.h"
+#include "../VNG_GE/VNG_Edge.h"
+#include "../VNG_GE/VNG_Gate.h"
+#include "../VNG_GE/VNG_Fan.h"
+
+#include "../ArxHelper/HelperClass.h"
+
+static bool GetEdgePts( const AcDbObjectId& objId, AcGePoint3d& spt, AcGePoint3d& ept, AcGePoint3d& pt )
+{
+    AcDbEntity* pEnt;
+    if( Acad::eOk != acdbOpenObject( pEnt, objId, AcDb::kForRead ) ) return false;
+
+    VNG_Edge* pEdge = VNG_Edge::cast( pEnt );
+    bool ret = ( pEdge != 0 );
+
+    if( ret )
+    {
+        spt = pEdge->m_spt;
+        ept = pEdge->m_ept;
+        pt = pEdge->m_pt;
+    }
+
+    pEdge->close();
+
+    return ret;
+}
+
+static bool GetInsertPt( const AcDbObjectId& objId, AcGePoint3d& pt )
+{
+    AcDbEntity* pEnt;
+    if( Acad::eOk != acdbOpenObject( pEnt, objId, AcDb::kForRead ) ) return false;
+
+    bool ret = true;
+    if( pEnt->isKindOf( VNG_Gate::desc() ) )
+    {
+        VNG_Gate* pGate = VNG_Gate::cast( pEnt );
+        pt = pGate->m_insertPt;
+    }
+    else if( pEnt->isKindOf( VNG_Fan::desc() ) )
+    {
+        VNG_Fan* pFan = VNG_Fan::cast( pEnt );
+        pt = pFan->m_insertPt;
+    }
+    else
+    {
+        ret = false;
+    }
+
+    pEnt->close();
+
+    return ret;
+}
+
+// 给定圆弧3点，计算最近的点坐标
+static AcGePoint3d CaclClosePoint( const AcGePoint3d& spt, const AcGePoint3d& ept, const AcGePoint3d& pt, const AcGePoint3d& tpt )
+{
+    AcGeCircArc3d arc( spt, pt, ept );
+    AcGePoint3d cnt = arc.center();
+
+    return arc.closestPointTo( tpt );
+}
+
+static bool ResetHelper( const AcDbObjectId& objId, const AcGePoint3d& spt, const AcGePoint3d& ept, const AcGePoint3d& pt, const AcGePoint3d& tpt )
+{
+    AcGePoint3d pt2 = CaclClosePoint( spt, ept, pt, tpt );
+
+    AcDbEntity* pEnt;
+    if( Acad::eOk != acdbOpenObject( pEnt, objId, AcDb::kForWrite ) ) return false;
+
+    bool ret = true;
+    if( pEnt->isKindOf( VNG_Gate::desc() ) )
+    {
+        VNG_Gate* pGate = VNG_Gate::cast( pEnt );
+        pGate->setData( spt, pt2, ept );
+    }
+    else if( pEnt->isKindOf( VNG_Fan::desc() ) )
+    {
+        VNG_Fan* pFan = VNG_Fan::cast( pEnt );
+        pFan->setData( spt, pt2, ept );
+    }
+    else
+    {
+        ret = false;
+    }
+
+    pEnt->close();
+
+    return ret;
+}
+
+void DrawCmd::ResetGate()
+{
+    AcDbObjectId gateObjId = ArxUtilHelper::SelectObject( _T( "\n请选择一个构筑物:" ) );
+    if( gateObjId.isNull() ) return;
+    if( !ArxDataTool::IsEqualType( _T( "VNG_Gate" ), gateObjId ) ) return;
+
+    AcDbObjectId edgeObjId = ArxUtilHelper::SelectObject( _T( "\n请选择要绑定的分支:" ) );
+    if( edgeObjId.isNull() ) return;
+    if( !ArxDataTool::IsEqualType( _T( "VNG_Edge" ), edgeObjId ) ) return;
+
+    AcGePoint3d insertPt;
+    GetInsertPt( gateObjId, insertPt );
+
+    AcGePoint3d tpt;
+    if( !ArxUtilHelper::PromptPt2( _T( "\n请在分支附近选择一个插入点: " ), insertPt, tpt ) ) return;
+
+    AcGePoint3d spt, ept, pt;
+    GetEdgePts( edgeObjId, spt, ept, pt );
+
+    ResetHelper( gateObjId, spt, ept, pt, tpt );
+}
+
+void DrawCmd::ResetFan()
+{
+    AcDbObjectId fanObjId = ArxUtilHelper::SelectObject( _T( "\n请选择一个通风动力:" ) );
+    if( fanObjId.isNull() ) return;
+    if( !ArxDataTool::IsEqualType( _T( "VNG_Fan" ), fanObjId ) ) return;
+
+    AcDbObjectId edgeObjId = ArxUtilHelper::SelectObject( _T( "\n请选择要绑定的分支:" ) );
+    if( edgeObjId.isNull() ) return;
+    if( !ArxDataTool::IsEqualType( _T( "VNG_Edge" ), edgeObjId ) ) return;
+
+    AcGePoint3d insertPt;
+    GetInsertPt( fanObjId, insertPt );
+
+    AcGePoint3d tpt;
+    if( !ArxUtilHelper::PromptPt2( _T( "\n请在分支附近选择一个插入点: " ), insertPt, tpt ) ) return;
+
+    AcGePoint3d spt, ept, pt;
+    GetEdgePts( edgeObjId, spt, ept, pt );
+
+    ResetHelper( fanObjId, spt, ept, pt, tpt );
+}

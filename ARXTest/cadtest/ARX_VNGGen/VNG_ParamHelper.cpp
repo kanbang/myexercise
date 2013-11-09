@@ -1,0 +1,209 @@
+#include "StdAfx.h"
+
+#include "VNG_ParamHelper.h"
+#include "config.h"
+
+#include "../ArxHelper/HelperClass.h"
+
+void VNG_ParamHelper::InitParams()
+{
+    // 词典存在
+    if( ArxDataTool::IsDictExist( VNG_PARAM_DICT ) ) return;
+
+    ArxDataTool::RegDict( VNG_PARAM_DICT );
+
+    CString str;
+
+    ArxDictTool* pDictTool = ArxDictTool::GetDictTool( VNG_PARAM_DICT );
+
+    /* 初始化图形参数 */
+    ArxUtilHelper::DoubleToString( DEF_NODE_SEP, str );
+    pDictTool->addEntry( NODE_SEP_KEY, str );
+
+    ArxUtilHelper::DoubleToString( DEF_RANK_SEP, str );
+    pDictTool->addEntry( RANK_SEP_KEY, str );
+
+    ArxUtilHelper::DoubleToString( DEF_GRAPH_RATIO, str );
+    pDictTool->addEntry( GRAPH_RATIO_KEY, str );
+
+    ArxUtilHelper::DoubleToString( DEF_GRAPH_WIDTH, str );
+    pDictTool->addEntry( GRAPH_WIDTH_KEY, str );
+
+    ArxUtilHelper::DoubleToString( DEF_GRAPH_HEIGHT, str );
+    pDictTool->addEntry( GRAPH_HEIGHT_KEY, str );
+
+    ArxUtilHelper::IntToString( DEF_GRAPH_USE_DEF_WH, str );
+    pDictTool->addEntry( GRAPH_USE_DEF_WH_KEY, str );
+
+    /* 初始化节点参数 */
+    ArxUtilHelper::DoubleToString( DEF_NODE_WIDTH, str );
+    pDictTool->addEntry( NODE_WIDTH_KEY, str );
+
+    ArxUtilHelper::DoubleToString( DEF_NODE_HEIGHT, str );
+    pDictTool->addEntry( NODE_HEIGHT_KEY, str );
+
+    ArxUtilHelper::DoubleToString( DEF_NODE_TEXT_HEIGHT, str );
+    pDictTool->addEntry( NODE_TEXT_HEIGHT_KEY, str );
+
+    /* 初始化分支参数 */
+    ArxUtilHelper::DoubleToString( DEF_ARROW_WIDTH, str );
+    pDictTool->addEntry( ARROW_WIDTH_KEY, str );
+
+    ArxUtilHelper::DoubleToString( DEF_ARROW_LENGTH, str );
+    pDictTool->addEntry( ARROW_LENGTH_KEY, str );
+
+    ArxUtilHelper::DoubleToString( DEF_EDGE_TEXT_HEIGHT, str );
+    pDictTool->addEntry( EDGE_TEXT_HEIGHT_KEY, str );
+
+    ArxUtilHelper::IntToString( DEF_NEED_EDGE, str );
+    pDictTool->addEntry( NEED_EDGE_KEY, str );
+
+    delete pDictTool;
+}
+
+// 设置默认参数
+static void SetDefParam( double& m_nodeSep, double& m_rankSep,
+                         double& m_graphRatio, double& m_graphWidth, double& m_graphHeight, bool& m_useDefWH,
+                         double& m_nodeWidth, double& m_nodeHeight, double& m_nodeTextHeight,
+                         double& m_arrowWidth, double& m_arrowLength, double& m_edgeTextHeight, bool& m_needEdge )
+{
+    m_nodeSep = DEF_NODE_SEP;
+    m_rankSep = DEF_RANK_SEP;
+    m_graphRatio = DEF_GRAPH_RATIO;
+    m_graphWidth = DEF_GRAPH_WIDTH;
+    m_graphHeight = DEF_GRAPH_HEIGHT;
+    m_useDefWH = true;
+
+    m_nodeWidth = DEF_NODE_WIDTH;
+    m_nodeHeight = DEF_NODE_HEIGHT;
+    m_nodeTextHeight = DEF_NODE_TEXT_HEIGHT;
+
+    m_arrowWidth = DEF_ARROW_WIDTH;
+    m_arrowLength = DEF_ARROW_LENGTH;
+    m_edgeTextHeight = DEF_EDGE_TEXT_HEIGHT;
+
+    m_needEdge = ( DEF_NEED_EDGE != 0 );
+}
+
+void VNG_ParamHelper::ReadParams( double& m_nodeSep, double& m_rankSep,
+                                  double& m_graphRatio, double& m_graphWidth, double& m_graphHeight, bool& m_useDefWH,
+                                  double& m_nodeWidth, double& m_nodeHeight, double& m_nodeTextHeight,
+                                  double& m_arrowWidth, double& m_arrowLength, double& m_edgeTextHeight, bool& m_needEdge )
+{
+    // 设置默认参数
+    // 如果词典操作失败，保证参数是合理的
+    SetDefParam( m_nodeSep, m_rankSep,
+                 m_graphRatio, m_graphWidth, m_graphHeight, m_useDefWH,
+                 m_nodeWidth, m_nodeHeight, m_nodeTextHeight,
+                 m_arrowWidth, m_arrowLength, m_edgeTextHeight, m_needEdge );
+
+    ArxDictTool* pDictTool = ArxDictTool::GetDictTool( VNG_PARAM_DICT );
+
+    CString str;
+
+    /* 读取图形参数 */
+    pDictTool->getEntry( NODE_SEP_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_nodeSep );
+
+    pDictTool->getEntry( RANK_SEP_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_rankSep );
+
+    pDictTool->getEntry( GRAPH_RATIO_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_graphRatio );
+
+    pDictTool->getEntry( GRAPH_WIDTH_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_graphWidth );
+
+    pDictTool->getEntry( GRAPH_HEIGHT_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_graphHeight );
+
+    pDictTool->getEntry( GRAPH_USE_DEF_WH_KEY, 1, str );
+    int i = 0;
+    ArxUtilHelper::StringToInt( str, i );
+    m_useDefWH = ( i != 0 );
+
+    /* 读取节点参数 */
+    pDictTool->getEntry( NODE_WIDTH_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_nodeWidth );
+
+    pDictTool->getEntry( NODE_HEIGHT_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_nodeHeight );
+
+    pDictTool->getEntry( NODE_TEXT_HEIGHT_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_nodeTextHeight );
+
+    /* 读取分支参数 */
+    pDictTool->getEntry( ARROW_WIDTH_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_arrowWidth );
+
+    pDictTool->getEntry( ARROW_LENGTH_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_arrowLength );
+
+    pDictTool->getEntry( EDGE_TEXT_HEIGHT_KEY, 1, str );
+    ArxUtilHelper::StringToDouble( str, m_edgeTextHeight );
+
+    pDictTool->getEntry( NEED_EDGE_KEY, 1, str );
+    /*int*/
+    i = 0;
+    ArxUtilHelper::StringToInt( str, i );
+    m_needEdge = ( i != 0 );
+
+    delete pDictTool;
+}
+
+void VNG_ParamHelper::WriteParams( double m_nodeSep, double m_rankSep,
+                                   double m_graphRatio, double m_graphWidth, double m_graphHeight, bool m_useDefWH,
+                                   double m_nodeWidth, double m_nodeHeight, double m_nodeTextHeight,
+                                   double m_arrowWidth, double m_arrowLength, double m_edgeTextHeight, bool m_needEdge )
+{
+    CString str;
+
+    ArxDictTool* pDictTool = ArxDictTool::GetDictTool( VNG_PARAM_DICT );
+
+    /* 写入图形参数 */
+    ArxUtilHelper::DoubleToString( m_nodeSep, str );
+    pDictTool->modifyEntry( NODE_SEP_KEY, 1, str );
+
+    ArxUtilHelper::DoubleToString( m_rankSep, str );
+    pDictTool->modifyEntry( RANK_SEP_KEY, 1, str );
+
+    ArxUtilHelper::DoubleToString( m_graphRatio, str );
+    pDictTool->modifyEntry( GRAPH_RATIO_KEY, 1, str );
+
+    ArxUtilHelper::DoubleToString( m_graphWidth, str );
+    pDictTool->modifyEntry( GRAPH_WIDTH_KEY, 1, str );
+
+    ArxUtilHelper::DoubleToString( m_graphHeight, str );
+    pDictTool->modifyEntry( GRAPH_HEIGHT_KEY, 1, str );
+
+    int i = ( m_useDefWH ? 1 : 0 );
+    ArxUtilHelper::IntToString( i, str );
+    pDictTool->modifyEntry( GRAPH_USE_DEF_WH_KEY, 1, str );
+
+    /* 写入节点参数 */
+    ArxUtilHelper::DoubleToString( m_nodeWidth, str );
+    pDictTool->modifyEntry( NODE_WIDTH_KEY, 1, str );
+
+    ArxUtilHelper::DoubleToString( m_nodeHeight, str );
+    pDictTool->modifyEntry( NODE_HEIGHT_KEY, 1, str );
+
+    ArxUtilHelper::DoubleToString( m_nodeTextHeight, str );
+    pDictTool->modifyEntry( NODE_TEXT_HEIGHT_KEY, 1, str );
+
+    /* 写入分支参数 */
+    ArxUtilHelper::DoubleToString( m_arrowWidth, str );
+    pDictTool->modifyEntry( ARROW_WIDTH_KEY, 1, str );
+
+    ArxUtilHelper::DoubleToString( m_arrowLength, str );
+    pDictTool->modifyEntry( ARROW_LENGTH_KEY, 1, str );
+
+    ArxUtilHelper::DoubleToString( m_edgeTextHeight, str );
+    pDictTool->modifyEntry( EDGE_TEXT_HEIGHT_KEY, 1, str );
+
+    /*int*/
+    i = ( m_needEdge ? 1 : 0 );
+    ArxUtilHelper::IntToString( i, str );
+    pDictTool->modifyEntry( NEED_EDGE_KEY, 1, str );
+
+    delete pDictTool;
+}

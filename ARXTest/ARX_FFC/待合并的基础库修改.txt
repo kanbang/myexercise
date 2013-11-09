@@ -1,0 +1,28 @@
+0) 修改了MineGE中的updateCurrentDraw方法
+   将该方法的内容进行分解，增加一个updateDraw()方法用于外部调用
+   DrawHelper同样也有对应的修改
+
+1) 连接点闭合
+   修改了向量的计算方法
+
+2) 增加了分割巷道实现
+EditCmd.cpp
+
+3) ArxClassHelper中增加了一个创建AcDbObject的方法
+CreateObjectByType()
+
+4) 在MineGE中的LinkedGE_EditorReactor.cpp
+   中增加对STRECTCH命令的响应(没有作用???)
+
+5) arx添加支持的搜索路径的方法
+   参见：arx添加支持的搜索路径的方法.txt
+
+后续还要涉及到arx程序的安装程序制作问题
+我比较偏向于在安装的时候指定搜索路径，同时在外部添加到arx的自动启动
+
+6) 修改了DrawVentCmd中的PolyLineJig，增加了NewPolyLineJig
+
+7) 实现了类似cad“快捷特性”面板的数据输入方式
+    后期还应考虑：将属性数据面板集成到这种输入方式，
+                          同时考虑允许其它的模块替换或者向里面添加自己的数据
+   OPM???

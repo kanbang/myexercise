@@ -1,0 +1,108 @@
+#include "StdAfx.h"
+#include "BlockGE.h"
+
+Adesk::UInt32 BlockGE::kCurrentVersionNumber =1;
+
+// 有修改，使得CompositeMineGE成为抽象类
+ACRX_NO_CONS_DEFINE_MEMBERS (BlockGE, MineGE)
+
+BlockGE::BlockGE()
+{
+
+}
+
+BlockGE::BlockGE( const AcGePoint3d& insertPt, double angle, const CString& blockName )
+ : m_insertPt(insertPt), m_angle(angle), m_blockName(blockName)
+{
+
+}
+
+AcGePoint3d BlockGE::getInsertPt() const
+{
+	assertReadEnabled();
+	return m_insertPt;
+}
+
+void BlockGE::setInsertPt( const AcGePoint3d& pt )
+{
+	assertWriteEnabled();
+	m_insertPt = pt;
+}
+
+double BlockGE::getDirectionAngle() const
+{
+	assertReadEnabled();
+	return m_angle;
+}
+
+void BlockGE::setDirectionAngle( double angle )
+{
+	assertWriteEnabled();
+	m_angle = angle;
+}
+
+CString BlockGE::getBlockName() const
+{
+	assertReadEnabled();
+	return m_blockName;
+}
+
+void BlockGE::setBlockName( const CString& blockName )
+{
+	assertWriteEnabled();
+	m_blockName = blockName;
+}
+
+void BlockGE::pullKeyParamFromReader( DrawParamReader& reader )
+{
+	reader.readPoint(m_insertPt);
+	reader.readDouble(m_angle);
+	reader.readString(m_blockName);
+}
+
+void BlockGE::pushKeyParamToWriter( DrawParamWriter& writer ) const
+{
+	writer.writePoint(m_insertPt);
+	writer.writeDouble(m_angle);
+	writer.writeString(m_blockName);
+}
+
+Acad::ErrorStatus BlockGE::dwgOutFields (AcDbDwgFiler *pFiler) const {
+	assertReadEnabled () ;
+	//----- Save parent class information first.
+	Acad::ErrorStatus es =MineGE::dwgOutFields (pFiler) ;
+	if ( es != Acad::eOk )
+		return (es) ;
+	//----- Object version number needs to be saved first
+	if ( (es =pFiler->writeUInt32 (BlockGE::kCurrentVersionNumber)) != Acad::eOk )
+		return (es) ;
+
+	pFiler->writeItem(m_insertPt);
+	pFiler->writeItem(m_angle);
+	AcString str = m_blockName;
+	pFiler->writeString(str);
+
+	return (pFiler->filerStatus ()) ;
+}
+
+Acad::ErrorStatus BlockGE::dwgInFields (AcDbDwgFiler *pFiler) {
+	assertWriteEnabled () ;
+	//----- Read parent class information first.
+	Acad::ErrorStatus es =MineGE::dwgInFields (pFiler) ;
+	if ( es != Acad::eOk )
+		return (es) ;
+	//----- Object version number needs to be read first
+	Adesk::UInt32 version =0 ;
+	if ( (es =pFiler->readUInt32 (&version)) != Acad::eOk )
+		return (es) ;
+	if ( version > BlockGE::kCurrentVersionNumber )
+		return (Acad::eMakeMeProxy) ;
+
+	pFiler->readItem(&m_insertPt);
+	pFiler->readItem(&m_angle);
+	AcString str;
+	pFiler->readString(str);
+	m_blockName = str.kACharPtr();
+
+	return (pFiler->filerStatus ()) ;
+}

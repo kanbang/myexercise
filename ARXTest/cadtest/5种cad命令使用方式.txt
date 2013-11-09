@@ -1,0 +1,12 @@
+5种cad命令使用方式
+
+假设注册了如下的命令
+ACED_ARXCOMMAND_ENTRY_AUTO(CMineGECmdsApp, JL, _drawTunnel, dt, ACRX_CMD_TRANSPARENT, NULL)
+
+(1) dt
+(2) .dt
+(3) _dt
+(4) jl.dt
+(5) jl._drawtunnel
+
+在程序中发送命令的消息时，应该尽量使用全称(4)或者(5)

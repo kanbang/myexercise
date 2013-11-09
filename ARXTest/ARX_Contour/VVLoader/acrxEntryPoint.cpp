@@ -1,0 +1,210 @@
+#include "StdAfx.h"
+#include "resource.h"
+
+#include "Utils.h"
+#include "SysVarHelper.h"
+
+#include "../MineGEDraw/MineGEDrawSystem.h"
+
+// 定义注册服务名称
+
+#ifndef VVLOADER_SERVICE_NAME
+#define VVLOADER_SERVICE_NAME _T("VVLOADER_SERVICE_NAME")
+#endif
+
+class CVVLoaderApp : public AcRxArxApp
+{
+
+public:
+    CVVLoaderApp () : AcRxArxApp () {}
+
+    virtual AcRx::AppRetCode On_kInitAppMsg ( void* pkt )
+    {
+
+        AcRx::AppRetCode retCode = AcRxArxApp::On_kInitAppMsg ( pkt ) ;
+
+        acrxRegisterService( VVLOADER_SERVICE_NAME );
+
+        // 初始化可视化系统
+        if( !initDrawSystem() ) return AcRx::kRetError;
+
+        // 加载图元模块
+        if( !loadGEModule() ) return AcRx::kRetError;
+
+        // 加载命令模块
+        if( !loadCmdModule() ) return AcRx::kRetError;
+
+        // 加载专业功能模块
+        if( !loadFunctionModule() ) return AcRx::kRetError;
+
+        acutPrintf( _T( "\nVVLoader::On_kInitAppMsg\n" ) );
+
+        return ( retCode ) ;
+    }
+
+    virtual AcRx::AppRetCode On_kUnloadAppMsg ( void* pkt )
+    {
+
+        AcRx::AppRetCode retCode = AcRxArxApp::On_kUnloadAppMsg ( pkt ) ;
+
+        // 卸载专业功能模块
+        unloadFunctionModule();
+
+        // 卸载命令模块
+        unloadCmdModule();
+
+        // 卸载图元模块
+        unloadGEModule();
+
+        // 退出可视化系统
+        unInitDrawSystem();
+
+        delete acrxServiceDictionary->remove( VVLOADER_SERVICE_NAME );
+
+        acutPrintf( _T( "\nVVLoader::On_kUnloadAppMsg\n" ) );
+
+        return ( retCode ) ;
+    }
+
+    virtual AcRx::AppRetCode On_kLoadDwgMsg( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxDbxApp::On_kLoadDwgMsg ( pkt );
+
+        // 修改全局数据
+        SysVarHelper::ModifyTolerance();
+        SysVarHelper::ModifySelectPreview();
+        SysVarHelper::ModifyPickAdd();
+
+        acutPrintf( _T( "\nVVLoader::On_kLoadDwgMsg\n" ) );
+
+        return retCode;
+    }
+
+    virtual AcRx::AppRetCode On_kUnloadDwgMsg( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxDbxApp::On_kUnloadDwgMsg( pkt ) ;
+
+        SysVarHelper::RestoreTolerace();
+        SysVarHelper::RestoreSelectPreview();
+        SysVarHelper::RestorePickAdd();
+
+        acutPrintf( _T( "\nVVLoader::On_kUnloadDwgMsg\n" ) );
+
+        return retCode;
+    }
+
+    virtual void RegisterServerComponents ()
+    {
+    }
+
+    bool loadArxModule( const CString& arxModuleName )
+    {
+        CString arxName = BuildArxFileName( arxModuleName );
+        CString serviceName = BuildServiceName( arxModuleName );
+
+        AcRxObject* pSvc = acrxServiceDictionary->at ( serviceName );
+        if( pSvc == NULL )
+        {
+            if( !acrxDynamicLinker->loadModule( arxName, false ) )
+            {
+                acutPrintf ( _T( "\n加载%s模块失败...\n" ), arxName ) ;
+                return false;
+            }
+            acutPrintf ( _T( "\n成功加载%s模块...\n" ), arxName ) ;
+        }
+        else
+        {
+            acutPrintf ( _T( "\n%s模块已经加载过了...\n" ), arxName ) ;
+        }
+        return true;
+    }
+
+    void unloadArxModule( const CString& arxModuleName )
+    {
+        acrxDynamicLinker->unloadModule( BuildArxFileName( arxModuleName ), 0 );
+        acutPrintf( _T( "\n卸载模块:%s\n" ), arxModuleName );
+    }
+
+    bool initDrawSystem()
+    {
+        if( !loadArxModule( _T( "MineGEDraw" ) ) ) return false;
+
+        // 初始化MineGEDrawSystem
+        MineGEDrawSystem::CreateInstance();
+        MineGEDrawSystem* pDrawSystem = MineGEDrawSystem::GetInstance();
+
+        pDrawSystem->loadPlugin( BuildPath( GetAppPathDir(), _T( "GasGEPlugin.arx" ) ) );
+
+        return true;
+    }
+
+    void unInitDrawSystem()
+    {
+        // 退出并清理MineGEService系统
+        MineGEDrawSystem::DestroyInstance();
+
+        unloadArxModule( _T( "MineGEDraw" ) );
+    }
+
+    // 加载图元模块
+    bool loadGEModule()
+    {
+        acutPrintf( _T( "\n-------- 加载图元模块 ------------\n" ) );
+
+        if( !loadArxModule( _T( "MineGE" ) ) ) return false;
+        if( !loadArxModule( _T( "GasGE" ) ) ) return false;
+        if( !loadArxModule( _T( "ContourGE" ) ) ) return false;
+
+        return true;
+    }
+
+    void unloadGEModule()
+    {
+        acutPrintf( _T( "\n-------- 卸载图元模块 ------------" ) );
+
+        unloadArxModule( _T( "ContourGE" ) );
+        unloadArxModule( _T( "GasGE" ) );
+        unloadArxModule( _T( "MineGE" ) );
+    }
+
+    bool loadCmdModule()
+    {
+        acutPrintf( _T( "\n-------- 加载命令模块 ------------" ) );
+
+        if( !loadArxModule( _T( "DrawGasCmd" ) ) ) return false;
+
+        return true;
+    }
+
+    void unloadCmdModule()
+    {
+        acutPrintf( _T( "\n-------- 卸载命令模块 ------------" ) );
+
+        unloadArxModule( _T( "DrawGasCmd" ) );
+    }
+
+    bool loadFunctionModule()
+    {
+        acutPrintf( _T( "\n-------- 加载功能模块 ------------" ) );
+
+        if( !loadArxModule( _T( "ARX_Contour" ) ) ) return false;
+
+        return true;
+    }
+
+    void unloadFunctionModule()
+    {
+        acutPrintf( _T( "\n-------- 卸载功能模块 ------------" ) );
+
+        unloadArxModule( _T( "ARX_Contour" ) );
+    }
+
+    static void VVTest_testVector()
+    {
+
+    }
+} ;
+
+IMPLEMENT_ARX_ENTRYPOINT( CVVLoaderApp )
+
+ACED_ARXCOMMAND_ENTRY_AUTO( CVVLoaderApp, VVTest, _testVector, tvec, ACRX_CMD_TRANSPARENT, NULL )

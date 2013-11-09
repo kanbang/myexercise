@@ -1,0 +1,35 @@
+#include "StdAfx.h"
+
+#ifndef CMSR2010_SERVICE_NAME
+#define CMSR2010_SERVICE_NAME _T("CMSR2010_SERVICE_NAME")
+#endif
+
+class CCMSR2010App : public AcRxArxApp {
+
+public:
+	CCMSR2010App () : AcRxArxApp () {}
+
+	virtual AcRx::AppRetCode On_kInitAppMsg (void *pkt) {
+
+		AcRx::AppRetCode retCode =AcRxArxApp::On_kInitAppMsg (pkt) ;
+		
+		acrxRegisterService(CMSR2010_SERVICE_NAME);
+
+		return (retCode) ;
+	}
+
+	virtual AcRx::AppRetCode On_kUnloadAppMsg (void *pkt) {
+
+		AcRx::AppRetCode retCode =AcRxArxApp::On_kUnloadAppMsg (pkt) ;
+
+		delete acrxServiceDictionary->remove(CMSR2010_SERVICE_NAME);
+
+		return (retCode) ;
+	}
+
+	virtual void RegisterServerComponents () {
+	}
+
+} ;
+
+IMPLEMENT_ARX_ENTRYPOINT(CCMSR2010App)

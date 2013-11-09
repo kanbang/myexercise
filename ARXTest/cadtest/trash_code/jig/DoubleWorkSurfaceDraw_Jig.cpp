@@ -1,0 +1,64 @@
+#include "StdAfx.h"
+#include "DoubleWorkSurfaceDraw_Jig.h"
+
+DoubleWorkSurfaceDraw_Jig::DoubleWorkSurfaceDraw_Jig( const CString& geType, const CString& drawName )
+    : MineGEDraw_Jig( geType, drawName )
+{
+}
+
+Adesk::Boolean DoubleWorkSurfaceDraw_Jig::doJig( MineGEDraw* pMineGEDraw )
+{
+    // 转换成特定效果的draw指针对象
+    m_pDraw = DoubleWorkSurfaceDraw::cast( pMineGEDraw );
+
+    setUserInputControls( ( UserInputControls )( kAcceptMouseUpAsPoint | kDontUpdateLastPoint ) );
+
+    setDispPrompt( _T( "\n请选择工作面起点坐标: " ) );
+    AcGePoint3d pt;
+    DragStatus stat = acquirePoint( pt );
+    if ( stat != kNormal ) return Adesk::kFalse;
+
+    m_pDraw->m_startPt = pt;
+
+    setDispPrompt( _T( "\n请选择工作面末点坐标: " ) );
+    stat = drag();
+
+    return ( stat == kNormal );
+}
+
+AcEdJig::DragStatus DoubleWorkSurfaceDraw_Jig::getEndPoint()
+{
+    AcGePoint3d pt;
+    AcEdJig::DragStatus stat = acquirePoint( pt, m_pDraw->m_startPt );
+    if( stat != kNormal ) return stat;
+
+    if( pt == m_pDraw->m_startPt )
+    {
+        stat = kNoChange;
+    }
+    else
+    {
+        m_pDraw->m_endPt = pt;
+    }
+    return stat;
+}
+
+AcEdJig::DragStatus DoubleWorkSurfaceDraw_Jig::sampler()
+{
+    return getEndPoint();
+}
+
+Adesk::Boolean DoubleWorkSurfaceDraw_Jig::update()
+{
+    m_pDraw->update(); // 更新参数
+
+    // 可以根据gs来判断是否需要更新
+    // 如果首先动态获取巷道宽度，这时可以不需要显示图形
+    // 应返回Adesk::kFalse
+    return Adesk::kTrue;
+}
+
+AcDbEntity* DoubleWorkSurfaceDraw_Jig::entity() const
+{
+    return m_pDraw;
+}

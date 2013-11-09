@@ -1,0 +1,59 @@
+#include "StdAfx.h"
+
+#include "DrawTool.h"
+#include "DrawSpecial.h"
+
+#define PI 3.1415926535897932384626433832795
+
+void DrawCross( AcGiWorldDraw *mode, const AcGePoint3d& pt, double radius )
+{
+	AcGeVector3d v(AcGeVector3d::kXAxis);
+	v*=radius;
+
+	for(int i=0;i<4;i++)
+	{
+		AcGePoint3dArray pts;
+		pts.append(pt);
+		pts.append(pt + v);
+		mode->geometry().worldLine(pts.asArrayPtr());
+
+		v.rotateBy(PI/2, AcGeVector3d::kZAxis);
+	}
+}
+
+// 绘制正弦(2个半圆)
+void DrawSin(AcGiWorldDraw *mode, const AcGePoint3d& pt, double angle, double radius)
+{
+	AcGeVector3d v(AcGeVector3d::kXAxis);
+	v.rotateBy(angle, AcGeVector3d::kZAxis);
+
+	// 绘制第1个半圆
+	mode->geometry().circularArc(pt+v*radius, radius, AcGeVector3d::kZAxis, v, PI);
+
+	// 绘制第2个半圆	
+	// 注：不使用v.negate()方法, 该方法会修改v
+	mode->geometry().circularArc(pt+v*radius*3, radius, AcGeVector3d::kZAxis, -v, PI);
+}
+
+void DrawShaft( AcGiWorldDraw *mode, const AcGePoint3d& pt, double radius )
+{
+	// 绘制外环
+	DrawCircle(mode, pt, radius, false);
+
+	// 绘制内环
+	DrawArc(mode, pt, radius*0.8, PI/6, PI, true);
+	DrawArc(mode, pt, radius*0.8, PI*7/6, PI, false);
+}
+
+void DrawJoint( AcGiWorldDraw *mode, const AcGePoint3d& pt, double radius, JointDrawType jdt )
+{
+	if(jdt == JDT_CROSS)
+	{
+		DrawCircle(mode, pt, radius, false);
+		DrawCross(mode, pt, radius);
+	}
+	else if(jdt == JDT_FILL)
+	{
+		DrawCircle(mode, pt, radius, true);
+	}
+}

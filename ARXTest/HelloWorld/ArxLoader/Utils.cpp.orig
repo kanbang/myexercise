@@ -1,0 +1,394 @@
+#include "StdAfx.h"
+#include "Utils.h"
+#include "FileDia.h"
+#include "CmdEcho.h"
+
+#include "CAcadApplication.h"
+#include "CAcadDocument.h"
+#include "CAcadModelSpace.h"
+#include "CAcadMenuBar.h"
+#include "CAcadMenuGroup.h"
+#include "CAcadMenuGroups.h"
+#include "CAcadPopupMenu.h"
+#include "CAcadPopupMenus.h"
+
+#include "AppMenu.h"
+
+// 获取当前模块的路径
+CString GetAppPathDir()
+{
+	TCHAR szMoudlePath[_MAX_PATH];
+	GetModuleFileName(_hdllInstance, szMoudlePath, _MAX_PATH);
+
+	TCHAR drive[_MAX_DRIVE];
+	TCHAR dir[_MAX_DIR];
+	_tsplitpath(szMoudlePath, drive, dir, NULL, NULL);
+
+	TCHAR path[_MAX_PATH];
+	_tmakepath(path, drive, dir, NULL, NULL);
+
+	return CString(path);
+}
+
+// 生成路径
+CString BuildPath(const CString& dir, const CString& fileName)
+{
+	CString path;
+	path.Format(_T("%s%s"), dir, fileName);
+	return path;
+}
+
+CString BuildArxFileName(const CString& arxModuleName)
+{
+	CString str;
+	str.Format(_T("%s.arx"), arxModuleName);
+	return str;
+}
+
+CString BuildServiceName(const CString& arxModuleName)
+{
+	CString str;
+	str.Format(_T("%s_SERVICE_NAME"), arxModuleName);
+	return str.MakeUpper();
+}
+
+#import "acax18enu.tlb" no_implementation raw_interfaces_only named_guids
+
+static void SplitCString(const CString& content, const CString& token, AcStringArray& cc)
+{
+	int curPos = 0;
+	CString str = content.Tokenize(token,curPos);
+	while (str != _T(""))
+	{
+		cc.append(str);
+		str = content.Tokenize(token, curPos);
+	};
+}
+
+static bool IsPathExit(const CString& supportPath, const CString& arxPath)
+{
+	AcStringArray cc;
+	SplitCString(supportPath, _T(";"), cc);
+
+	bool bFind = false;
+	int n = cc.length();
+	for(int i=0;i<n;i++)
+	{
+		if(cc[i].compareNoCase(arxPath) == 0)
+		{
+			bFind = true;
+			break;
+		}
+	}
+	return bFind;
+}
+
+static CString ExcludePath(const CString& supportPath, const CString& arxPath)
+{
+	AcStringArray cc;
+	SplitCString(supportPath, _T(";"), cc);
+
+	AcStringArray paths;
+
+	int n = cc.length();
+	for(int i=0;i<n;i++)
+	{
+		if(cc[i].compareNoCase(arxPath) == 0) continue;
+		paths.append(cc[i]);
+	}
+
+	CString path;
+	n = paths.length();
+	for(int i=0;i<n;i++)
+	{
+		if(i == n-1)
+		{
+			path.AppendFormat(_T("%s"), paths[i].kACharPtr());
+		}
+		else
+		{
+			path.AppendFormat(_T("%s;"), paths[i].kACharPtr());
+		}
+	}
+	return path;
+}
+
+bool AddSupportPath(const CString& arxPath)
+{
+	AutoCAD::IAcadPreferences *pPrefer;
+	AutoCAD::IAcadPreferencesFiles *pPreferFiles;
+	HRESULT hr = NOERROR;
+
+	bool ret = true;
+	TRY
+	{
+		LPDISPATCH pAcadDisp = acedGetAcadWinApp()->GetIDispatch(TRUE);
+		AutoCAD::IAcadApplication *pAcad = NULL;
+		if (SUCCEEDED(pAcadDisp->QueryInterface(AutoCAD::IID_IAcadApplication,(void**)&pAcad)))
+		{
+			BSTR supportPath;
+			hr = pAcad->get_Preferences(&pPrefer);
+			pAcad->Release();
+
+			hr = pPrefer->get_Files(&pPreferFiles);
+			pPrefer->Release();
+
+			hr = pPreferFiles->get_SupportPath(&supportPath);
+			CString stemp = supportPath;
+			if(!IsPathExit(stemp, arxPath))
+			{
+				stemp = stemp + _T(";") + arxPath;
+				supportPath = stemp.AllocSysString();
+				pPreferFiles->put_SupportPath(supportPath);
+			}
+			SysFreeString(supportPath); // 用完释放
+		}
+		pPreferFiles->Release();
+	}
+	CATCH(COleDispatchException,e)
+	{
+		//e->ReportError(); // 调试用
+		e->Delete();
+		ret = false;
+	}
+
+	END_CATCH;
+
+	return ret;
+}
+
+bool RemoveSupportPath( const CString& arxPath )
+{
+	AutoCAD::IAcadPreferences *pPrefer;
+	AutoCAD::IAcadPreferencesFiles *pPreferFiles;
+	HRESULT hr = NOERROR;
+
+	bool ret = true;
+	TRY
+	{
+		LPDISPATCH pAcadDisp = acedGetAcadWinApp()->GetIDispatch(TRUE);
+		AutoCAD::IAcadApplication *pAcad = NULL;
+		if (SUCCEEDED(pAcadDisp->QueryInterface(AutoCAD::IID_IAcadApplication,(void**)&pAcad)))
+		{
+			BSTR supportPath;
+			hr = pAcad->get_Preferences(&pPrefer);
+			pAcad->Release();
+
+			hr = pPrefer->get_Files(&pPreferFiles);
+			pPrefer->Release();
+
+			hr = pPreferFiles->get_SupportPath(&supportPath);
+
+			// 排除重复路径
+			CString stemp = supportPath;
+			stemp = ExcludePath(stemp, arxPath);
+			supportPath = stemp.AllocSysString();
+			pPreferFiles->put_SupportPath(supportPath);
+			SysFreeString(supportPath); // 用完释放
+		}
+		pPreferFiles->Release();
+	}
+	CATCH(COleDispatchException,e)
+	{
+		//e->ReportError(); // 调试用
+		e->Delete();
+		ret = false;
+	}
+	END_CATCH;
+
+	return ret;
+}
+
+static void SendESC()
+{
+	////如果菜单已存在则系统会继续提示输入菜单文件，所以必须发送取消命令
+	TCHAR menuCmd[3];
+	menuCmd[0] = 27;
+	menuCmd[1] = _T('\0');
+	acDocManager->sendStringToExecute(curDoc(), menuCmd);
+}
+
+// 使用acedCommand
+static bool LoadCUI1(const CString& filePath)
+{
+	//加载菜单
+	int ret = acedCommand(RTSTR, _T("menu"), RTSTR, filePath, 0);
+
+	acedCommand(0);
+	//SendESC();
+
+	return (ret == RTNORM);
+}
+
+static bool LoadCUI2(const CString& filePath)
+{
+	CString cmd;
+	cmd.Format(_T("cuiload %s "), filePath);
+	Acad::ErrorStatus es = acDocManager->sendStringToExecute(curDoc(), cmd, false, false, false);
+
+	//SendESC();
+
+	return (Acad::eOk == es);
+}
+
+static bool UnLoadCUI1(const CString& menuGroupName)
+{
+	return (RTNORM == acedCommand(RTSTR, _T("cuiunload"), RTSTR, menuGroupName, 0));
+}
+
+static bool UnLoadCUI2(const CString& menuGroupName)
+{
+	CString cmd;
+	cmd.Format(_T("cuiunload %s "), menuGroupName);
+	return (Acad::eOk == acDocManager->sendStringToExecute(curDoc(), cmd, false, false, false));
+}
+
+//卸载局部菜单
+bool UnLoadPartialMenuUseCmd(const CString& menuGroupName)
+{
+	// 切换FILEDIA系统变量
+	FileDia fd(0);
+	CmdEcho ce(0);
+
+	return UnLoadCUI1(menuGroupName);
+	//return UnLoadCUI2(menuGroupName);
+}
+
+//加载局部菜单
+bool LoadPartialMenuUseCmd(const CString& filePath, const CString& menuGroupName)
+{
+	// 如果有的话先卸载
+	//UnLoadPartialMenuUseCmd(menuGroupName);
+
+	// 切换FILEDIA系统变量
+	FileDia fd(0);
+	CmdEcho ce(0);
+
+	return LoadCUI1(filePath);
+	//return LoadCUI2(filePath);
+}
+
+bool UnLoadPartialMenuUseCom(const CString& menuGroupName)
+{
+	bool ret = true;
+
+	TRY
+	{
+		long i, menuGroupNum;   //菜单组数目
+		VARIANT index;
+		VariantInit(&index);
+		index.vt = VT_I4;
+		CAcadApplication acadApp(acedGetAcadWinApp()->GetIDispatch(TRUE));
+		CAcadMenuGroups menuGroups(acadApp.get_MenuGroups());
+		menuGroupNum = menuGroups.get_Count();
+		for (i = 0; i < menuGroupNum; i++) 
+		{
+			index.lVal = i;
+			CAcadMenuGroup menuGroup = menuGroups.Item(index);
+			if (menuGroup.get_Name() == menuGroupName) 
+			{
+				menuGroup.Unload();
+				break;
+			}
+		}
+	}
+	CATCH(COleDispatchException,e)
+	{
+		//e->ReportError(); // 调试用
+		e->Delete();
+		ret = false;
+	}
+	END_CATCH;
+
+	return ret;
+}
+
+//加载局部菜单
+bool LoadPartialMenuUseCom(const CString& filePath, const CString& menuGroupName)
+{
+	//如果有的话先卸载
+	//UnLoadPartialMenuUseCom(menuGroupName);
+
+	bool ret = true;
+
+	TRY
+	{
+		long i, menuGroupNum;   //菜单组数目
+		VARIANT index;
+		VariantInit(&index);
+		index.vt = VT_I4;
+
+		//加载菜单
+		VARIANT BaseMenu;   //是否加载为基础菜单
+		VariantInit(&BaseMenu);
+		BaseMenu.vt = VT_BOOL;
+		BaseMenu.boolVal = FALSE;
+		CAcadApplication acadApp(acedGetAcadWinApp()->GetIDispatch(TRUE));
+		CAcadMenuGroups menuGroups(acadApp.get_MenuGroups());
+		CAcadMenuGroup menuGroup = menuGroups.Load(filePath, BaseMenu);
+		// 把菜单在菜单条上显示出来
+		CAcadMenuBar menuBar(acadApp.get_MenuBar());  //当前菜单条
+		CAcadPopupMenus popupMenus(menuGroup.get_Menus()); //要加入的菜单条
+		CAcadPopupMenu popupMenu;
+		long curPopupMenuNum = menuBar.get_Count();   //当前菜单条上菜单的数目
+		long n = popupMenus.get_Count();
+		for (long i = 0; i < n; i++)
+		{
+			index.lVal = i;
+			popupMenu = popupMenus.Item(index);
+			index.lVal = i + curPopupMenuNum;
+			popupMenu.InsertInMenuBar(index);
+		}
+	}
+	CATCH(COleDispatchException,e)
+	{
+		//e->ReportError(); // 调试用
+		e->Delete();
+		ret = false;
+	}
+	END_CATCH;
+
+	return ret;
+}
+
+bool loadArxModule(const CString& arxModuleName)
+{
+	CString arxName = BuildArxFileName(arxModuleName);
+	CString serviceName = BuildServiceName(arxModuleName);
+
+	AcRxObject *pSvc = acrxServiceDictionary->at (serviceName);
+	if(pSvc == NULL)
+	{
+		if( !acrxDynamicLinker->loadModule(arxName, false) )
+		{
+			acutPrintf (_T("\n加载%s模块失败...\n"), arxName) ; 
+			return false;
+		}
+		acutPrintf (_T("\n成功加载%s模块...\n"), arxName) ;
+	}
+	else
+	{
+		acutPrintf (_T("\n%s模块已经加载过了...\n"), arxName) ;
+	}
+	return true;
+}
+
+void unloadArxModule(const CString& arxModuleName)
+{
+	acrxDynamicLinker->unloadModule(BuildArxFileName(arxModuleName), 0);
+	acutPrintf(_T("\n卸载模块:%s\n"), arxModuleName);
+}
+
+void AddLoaderMenu()
+{
+	AppMenu menu;
+	menu.AddMenu(_T("基蓝软件"));
+	menu.AddSubMenu(_T("启动"), _T("JL.LoadArxProgram "));
+	menu.AddSubMenu(_T("卸载"), _T("JL.UnLoadArxProgram "));
+	menu.CreateMenus();
+}
+
+void RemoveLoaderMenu()
+{
+	AppMenu::CleanUpMenus();
+}

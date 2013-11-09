@@ -1,0 +1,59 @@
+#include "stdafx.h"
+#include "OT_AFCDlg.h"
+
+#include "GasDlg.h"
+#include "DieselDlg.h"
+
+IMPLEMENT_DYNAMIC(OT_AFCDlg, CDialog)
+
+OT_AFCDlg::OT_AFCDlg(CWnd* pParent /*=NULL*/)
+	: CDialog(OT_AFCDlg::IDD, pParent)
+{
+
+}
+
+OT_AFCDlg::~OT_AFCDlg()
+{
+}
+
+void OT_AFCDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CDialog::DoDataExchange(pDX);
+}
+
+
+BEGIN_MESSAGE_MAP(OT_AFCDlg, CDialog)
+	ON_BN_CLICKED(IDC_OT_AFC_GAS_BTN, &OT_AFCDlg::OnBnClickedOtAfcGasBtn)
+	ON_BN_CLICKED(IDC_OT_AFC_DIESEL_BTN, &OT_AFCDlg::OnBnClickedOtAfcDieselBtn)
+END_MESSAGE_MAP()
+
+BOOL OT_AFCDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+
+	if(!m_isDiesel)
+	{
+		GetDlgItem(IDC_OT_AFC_DIESEL_BTN)->EnableWindow(FALSE);
+	}
+
+	return TRUE;
+}
+
+void OT_AFCDlg::OnBnClickedOtAfcGasBtn()
+{
+	CAcModuleResourceOverride myResources;
+
+	GasDlg dlg;
+	dlg.m_objId = m_objId;
+	dlg.gas_type = GT_TUNNEL;
+	dlg.DoModal();
+}
+
+void OT_AFCDlg::OnBnClickedOtAfcDieselBtn()
+{
+	CAcModuleResourceOverride myResources;
+
+	DieselDlg dlg;
+	dlg.m_objId = m_objId;
+	dlg.DoModal();
+}

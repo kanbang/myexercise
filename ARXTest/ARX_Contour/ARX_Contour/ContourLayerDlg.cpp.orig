@@ -1,0 +1,80 @@
+#include "stdafx.h"
+#include "ContourLayerDlg.h"
+
+#include "ARX_Gas.h"
+#include "ContourHelper.h"
+
+#include "../ArxHelper/HelperClass.h"
+#include "../MineGE/HelperClass.h"
+
+IMPLEMENT_DYNAMIC(ContourLayerDlg, CDialog)
+
+ContourLayerDlg::ContourLayerDlg(CWnd* pParent /*=NULL*/)
+	: CDialog(ContourLayerDlg::IDD, pParent)
+{
+
+}
+
+ContourLayerDlg::~ContourLayerDlg()
+{
+}
+
+void ContourLayerDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CDialog::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_CSC_LAYER_LIST, m_layerList);
+}
+
+
+BEGIN_MESSAGE_MAP(ContourLayerDlg, CDialog)
+	ON_BN_CLICKED(IDOK, &ContourLayerDlg::OnBnClickedOk)
+END_MESSAGE_MAP()
+
+
+// ContourLayerDlg 消息处理程序
+
+void ContourLayerDlg::OnBnClickedOk()
+{
+	int pos = m_layerList.GetCurSel();
+	if(pos == CB_ERR)
+	{
+		MessageBox(_T("没有选择包含等值线的图层"));
+		return;
+	}
+	
+	// 获取图层名称
+	CString layer;
+	m_layerList.GetLBText(pos, layer);
+
+	// 删除图层上的所有等值线图元
+	AcDbObjectIdArray objIds;
+	ContourHelper::GetContourGEOnLayer(layer, _T("ContourGE"), objIds);
+	ArxEntityHelper::EraseObjects2(objIds, true);
+
+	OnOK();
+}
+
+BOOL ContourLayerDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+
+	FillLayerList();
+
+	return TRUE;
+}
+
+void ContourLayerDlg::FillLayerList()
+{
+	// 读取所有图层列表
+	AcStringArray layers;
+	GetEntityLayers(_T("ContourGE"), layers);
+
+	m_layerList.ResetContent();
+
+	// 填充列表
+	int n = layers.length();
+	for(int i=0;i<n;i++)
+	{
+		m_layerList.AddString(layers[i].kACharPtr());
+	}
+}

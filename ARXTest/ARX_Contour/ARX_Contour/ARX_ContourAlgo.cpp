@@ -1,0 +1,434 @@
+#include "StdAfx.h"
+#include "ARX_ContourAlgo.h"
+#include "ARX_DrawContour.h"
+#include "ARX_GeoAlgo.h"
+
+#include "ContourParamHelper.h"
+
+// 三角形网格法生成等值线
+#include "../Contour/Contour.h"
+// 插值算法
+#include "../Contour/Interpolate.h"
+
+#pragma comment(lib, "Contour.lib")
+
+#include <algorithm>
+#include "CADDrawHelper.h"
+
+static void DrawOrginData( const AcGePoint3dArray& pts, double textHeight )
+{
+    int len = pts.length();
+    for( int i = 0; i < len; i++ )
+    {
+        AcGePoint3d pt = pts[i];
+
+        CString text;
+        text.Format( _T( "%.3f" ), pt.z );
+        pt.z = 0;
+
+        DrawMText( pt, 0, text, textHeight / 2 );
+        DrawEllipse( pt, textHeight, textHeight );
+    }
+}
+
+static void DrawTriangle( const AcGePoint3dArray& pts, const EdgeArray& segments )
+{
+    for( int i = 0; i < segments.size(); i++ )
+    {
+        DT_Edge e = segments[i];
+        AcGePoint3d p1 = pts[e.s], p2 = pts[e.t];
+        p1.z = 0;
+        p2.z = 0;
+        DrawLine( p1, p2 );
+    }
+}
+
+static void PointArray_2_AcGePoint3dArray( const PointArray& pa, AcGePoint3dArray& pts )
+{
+    for( int i = 0; i < pa.size(); i++ )
+    {
+        pts.append( AcGePoint3d( pa[i].x, pa[i].y, pa[i].z ) );
+    }
+}
+
+static void AcGePoint3dArray_2_PointArray( const AcGePoint3dArray& pts, PointArray& pa )
+{
+    for( int i = 0; i < pts.length(); i++ )
+    {
+        DT_Point p = {pts[i].x, pts[i].y, pts[i].z};
+        pa.push_back( p );
+    }
+}
+
+static void DoubleArray_2_AcGeDoubleArray( const DoubleArray& da, AcGeDoubleArray& dValues )
+{
+    int n = da.size();
+    for( int i = 0; i < n; i++ )
+    {
+        dValues.append( da[i] );
+    }
+}
+
+static void AcGeDoubleArray_2_DoubleArray( const AcGeDoubleArray& dValues, DoubleArray& da )
+{
+    int n = dValues.length();
+    for( int i = 0; i < n; i++ )
+    {
+        da.push_back( dValues[i] );
+    }
+}
+
+static void AcGeColorArray_2_ColorArray( const AcGeColorArray& colors, ColorArray& ca )
+{
+    int n = colors.length();
+    for( int i = 0; i < n; i++ )
+    {
+        DT_Color rgb = {GetRValue( colors[i] ), GetGValue( colors[i] ), GetBValue( colors[i] )};
+        ca.push_back( rgb );
+    }
+}
+
+static void ColorArray_2_AcGeColorArray( const ColorArray& ca, AcGeColorArray& colors )
+{
+    int n = ca.size();
+    for( int i = 0; i < n; i++ )
+    {
+        colors.append( RGB( ca[i].r, ca[i].g, ca[i].b ) );
+    }
+}
+
+static void CDT_Trace( const PointArray& datas,
+                       const DoubleArray& zValues,
+                       PointArray& cnpts,
+                       ContourArray& cna,
+                       PointArray& bpts )
+{
+    // 1) 三角网格剖分
+    EdgeArray segments;
+    PointArray holes;
+    EdgeArray ea;
+    TriangleArray ta;
+    CDT_LIB( datas, segments, holes, ea, ta );
+
+    // 2) 追踪等值线
+    TraceContours( datas, ea, ta, zValues, cnpts, cna );
+
+    // 3) 搜索边界
+    SearchBoundary( datas, ea, ta, bpts );
+
+    // 测试用代码
+    // 绘制原始数据
+    //AcGePoint3dArray pts;
+    //PointArray_2_AcGePoint3dArray(datas, pts);
+    //DrawOrginData(pts, 10);
+    //DrawTriangle(pts, ea);
+}
+
+static void DrawContourHelper( const DoubleArray& zValues,
+                               const PointArray& cnpts,
+                               const ContourArray& cna )
+{
+    // 获取等值线全局参数
+    bool bSmooth;
+    double textHeight;
+    ContourParamHelper::ReadParams( bSmooth, textHeight );
+
+    for( int i = 0; i < ( int )cna.size(); i++ )
+    {
+        DT_Contour z_contour = cna[i];
+        int zi = z_contour.zi;
+        int cnpts_num = z_contour.cnpts_num;
+
+        // 定位到第i条等值线位置
+        int s = 0;
+        for( int j = 0; j < i; j++ )
+        {
+            s += cna[j].cnpts_num;
+        }
+        int t = s + cna[i].cnpts_num;
+
+        PointArray pa;
+        for( int j = s; j < t; j++ )
+        {
+            pa.push_back( cnpts[j] );
+        }
+
+        if( pa.empty() ) continue;
+
+        // 绘制等值线
+        AcGePoint3dArray pts;
+        PointArray_2_AcGePoint3dArray( pa, pts );
+        CreateContourLine( zValues[zi], pts, bSmooth );
+
+        // 搜索标注位置
+        PointArray tpa;
+        SearchLabelPostions( pa, tpa );
+
+        // 绘制标注
+        AcGePoint3dArray tpts;
+        PointArray_2_AcGePoint3dArray( tpa, tpts );
+        CreateContourLabels( zValues[zi], pts, bSmooth, tpts, textHeight );
+    }
+}
+
+static void DrawFillHelper( const PointArray& all_cnpts,
+                            const ContourArray& all_cna,
+                            const IntArray& sortPos,
+                            const ColorArray& all_colors )
+{
+    // 获取等值线全局参数
+    bool bSmooth;
+    double textHeight;
+    ContourParamHelper::ReadParams( bSmooth, textHeight );
+
+    for( int i = 0; i < sortPos.size(); i++ )
+    {
+        int k = sortPos[i];    // 对应的等值线
+        int c = all_cna[k].zi; // 对应的z值索引
+
+        int s = 0;
+        for( int j = 0; j < k; j++ )
+        {
+            s += all_cna[j].cnpts_num + all_cna[j].bpts_num;
+        }
+        int t = s + all_cna[k].cnpts_num + all_cna[k].bpts_num;
+
+        if( s == t ) continue;
+
+        PointArray cnpts;
+        std::copy( all_cnpts.begin() + s, all_cnpts.begin() + t, std::back_inserter( cnpts ) );
+
+        //acutPrintf(_T("\nk=%d, zi=%d, 个数:%d"), k, c, cnpts.size());
+        AcGePoint3dArray pts;
+        PointArray_2_AcGePoint3dArray( cnpts, pts );
+
+        CreateContourFill( pts, all_cna[k].cnpts_num, all_cna[k].bpts_num, RGB( all_colors[c].r, all_colors[c].g, all_colors[c].b ), bSmooth );
+    }
+}
+
+static void GenerateContourLines( const PointArray& bounds, const PointArray& datas, const DoubleArray& zValues )
+{
+    // 追踪等值线
+    PointArray cnpts;
+    ContourArray cna;
+    PointArray bpts;
+    CDT_Trace( datas, zValues, cnpts, cna, bpts );
+
+    // 裁剪算法实现有问题，暂时屏蔽
+    // bounds.empty() --> !bounds.empty()
+    if( bounds.empty() )
+    {
+        //acutPrintf(_T("\n无裁剪"));
+        // 绘制等值线
+        DrawContourHelper( zValues, cnpts, cna );
+    }
+    else
+    {
+        //acutPrintf(_T("\n裁剪边界"));
+        // 裁剪边界
+        PointArray clip_cnpts;
+        ContourArray clip_cna;
+        Clip( cnpts, cna, bounds, clip_cnpts, clip_cna );
+
+        // 绘制等值线
+        DrawContourHelper( zValues, clip_cnpts, clip_cna );
+    }
+}
+
+static void GenerateContourFills( const PointArray& bounds, const PointArray& datas, const DoubleArray& zValues, const ColorArray& colors )
+{
+    // 追踪等值线,闭合等值线,并构造拓扑包含关系
+    // 追踪等值线
+    PointArray cnpts;
+    ContourArray cna;
+    PointArray bpts;
+    CDT_Trace( datas, zValues, cnpts, cna, bpts );
+
+    PointArray all_cnpts;
+    ContourArray all_cna;
+    IntArray sortPos;
+    // 裁剪算法实现有问题，暂时屏蔽
+    // bounds.empty() --> !bounds.empty()
+    if( bounds.empty() )
+    {
+        // 闭合等值线以及构造拓扑关系
+        EncloseContour_BuildTopolgy( cnpts, cna, bpts, all_cnpts, all_cna, sortPos );
+    }
+    else
+    {
+        // 裁剪边界
+        PointArray clip_cnpts;
+        ContourArray clip_cna;
+        Clip( cnpts, cna, bounds, clip_cnpts, clip_cna );
+
+        //for(int i=0;i<clip_cna.size();i++)
+        //{
+        //	acutPrintf(_T("\nzi=%d, cnpts_num=%d, bpts_num=%d"), clip_cna[i].zi, clip_cna[i].cnpts_num, clip_cna[i].bpts_num);
+        //}
+
+        //acutPrintf(_T("\n=================================="));
+
+        // 闭合等值线以及构造拓扑关系
+        EncloseContour_BuildTopolgy( clip_cnpts, clip_cna, bounds, all_cnpts, all_cna, sortPos );
+
+        //for(int i=0;i<all_cnpts.size();i++)
+        //{
+        //	acutPrintf(_T("\n%.3f, %.3f"), all_cnpts[i].x, all_cnpts[i].y);
+        //}
+        //for(int i=0;i<all_cna.size();i++)
+        //{
+        //	acutPrintf(_T("\nzi=%d, cnpts_num=%d, bpts_num=%d"), all_cna[i].zi, all_cna[i].cnpts_num, all_cna[i].bpts_num);
+        //}
+    }
+
+    // 绘制等值线颜色填充
+    DrawFillHelper( all_cnpts, all_cna, sortPos, colors );
+}
+
+double ARX_InterpolatePoint( const AcGePoint3dArray& datas, const AcGePoint3d& pt )
+{
+    PointArray H;
+    AcGePoint3dArray_2_PointArray( datas, H );
+
+    DT_Point p = {pt.x, pt.y, pt.z};
+    return InterpolatePoint( H, p );
+}
+
+void ARX_InterpolatePoints( const AcGePoint3dArray& datas, AcGePoint3dArray& pts )
+{
+    PointArray H;
+    AcGePoint3dArray_2_PointArray( datas, H );
+
+    PointArray V;
+    AcGePoint3dArray_2_PointArray( pts, V );
+
+    InterpolatePoints( H, V );
+
+    pts.removeAll();
+    PointArray_2_AcGePoint3dArray( V, pts );
+}
+
+void ARX_GetMinMaxZValue( const AcGePoint3dArray& datas, double& minZ, double& maxZ )
+{
+    DoubleArray zs;
+    DoubleArray::iterator itr;
+    for( int i = 0; i < ( int )datas.length(); i++ )
+    {
+        zs.push_back( datas[i].z );
+    }
+
+    itr = min_element( zs.begin(), zs.end() );
+    minZ = *itr;
+
+    itr = max_element( zs.begin(), zs.end() );
+    maxZ = *itr;
+}
+
+static void SplitRange( double minZ, double maxZ, double dz, DoubleArray& zValues )
+{
+    const double eplison = 0.001;
+    //double dz = (maxZ-minZ)/n;
+    for( double z = minZ; ( maxZ + eplison - z ) > 0; z += dz )
+    {
+        zValues.push_back( z );
+    }
+}
+
+void ARX_PreprocessPointSet( AcGePoint3dArray& bounds, const AcGePoint3dArray& datas, AcGePoint3dArray& new_datas )
+{
+    // 1) 插值计算边界的z
+    ARX_InterpolatePoints( datas, bounds );
+
+    //acutPrintf(_T("\n输出边界插值后的数据: "));
+    //for(int i=0;i<interploate_bounds.length();i++)
+    //{
+    //	acutPrintf(_T("\n\t%.3f, %.3f, %.3f)"), interploate_bounds[i].x, interploate_bounds[i].y, interploate_bounds[i].z);
+    //}
+
+    new_datas.append( bounds );
+
+    // 2) 寻找凸包, 构造
+    AcGePoint3dArray polyon;
+    Melkman_ConvexHull_3D( bounds, polyon );
+
+    // 3) 排除不在多边形内的点
+    int n = datas.length();
+    for( int i = 0; i < n; i++ )
+    {
+        if( IsPointInPolygon( datas[i], polyon ) )
+        {
+            new_datas.append( datas[i] );
+        }
+    }
+}
+
+void ARX_DrawCountour( AcGePoint3dArray& bounds, const AcGePoint3dArray& pts, double minZ, double maxZ, double dz )
+{
+    //acutPrintf(_T("\n预处理前:%d"), pts.length());
+    AcGePoint3dArray ext_pts;
+    if( bounds.isEmpty() )
+    {
+        ext_pts.append( pts );
+    }
+    else
+    {
+        ARX_PreprocessPointSet( bounds, pts, ext_pts );
+    }
+    //acutPrintf(_T("\n预处理后:%d"), ext_pts.length());
+
+    //acutPrintf(_T("\n输出插值后的数据: "));
+    //for(int i=0;i<ext_pts.length();i++)
+    //{
+    //	//acutPrintf(_T("\n\t%.3f, %.3f, %.3f)"), ext_pts[i].x, ext_pts[i].y, ext_pts[i].z);
+    //	ext_pts[i].z = abs(ext_pts[i].z);
+    //}
+
+    // 数据结构转换
+    PointArray datas;
+    AcGePoint3dArray_2_PointArray( ext_pts, datas );
+
+    // 分割z值区间
+    DoubleArray za;
+    SplitRange( minZ, maxZ, dz, za );
+
+    PointArray ba;
+    AcGePoint3dArray_2_PointArray( bounds, ba );
+
+    // 绘制等值线
+    GenerateContourLines( ba, datas, za );
+
+    AcGeDoubleArray zValues;
+    DoubleArray_2_AcGeDoubleArray( za, zValues );
+
+    // 添加等值信息图元(没有颜色填充)
+    CreateContourInfo( pts, zValues );
+}
+
+void ARX_DrawFill( AcGePoint3dArray& bounds, const AcGePoint3dArray& pts, const AcGeDoubleArray& zValues, const AcGeColorArray& colors )
+{
+    AcGePoint3dArray ext_pts;
+    if( bounds.isEmpty() )
+    {
+        ext_pts.append( pts );
+    }
+    else
+    {
+        ARX_PreprocessPointSet( bounds, pts, ext_pts );
+    }
+
+    // 数据结构转换
+    PointArray datas;
+    AcGePoint3dArray_2_PointArray( ext_pts, datas );
+
+    DoubleArray za;
+    AcGeDoubleArray_2_DoubleArray( zValues, za );
+
+    ColorArray ca;
+    AcGeColorArray_2_ColorArray( colors, ca );
+
+    PointArray ba;
+    AcGePoint3dArray_2_PointArray( bounds, ba );
+
+    GenerateContourFills( ba, datas, za, ca );
+    GenerateContourLines( ba, datas, za );
+}

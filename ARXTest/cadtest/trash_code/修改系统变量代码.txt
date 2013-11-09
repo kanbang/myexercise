@@ -1,0 +1,10 @@
+	resbuf rbCmdEcho;
+	acedGetVar(_T("CMDECHO"), &rbCmdEcho);
+	m_CmdEchoSysVar = rbCmdEcho.resval.rint;
+
+	//acutPrintf(_T("\n原始系统变量==>CMDECHO:%d"), m_CmdEchoSysVar);
+
+	rbCmdEcho.resval.rint = 0;
+	acedSetVar(_T("CMDECHO"), &rbCmdEcho);
+
+	//acutPrintf(_T("\n修改系统变量==>CMDECHO:%d"), 0);

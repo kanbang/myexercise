@@ -1,0 +1,155 @@
+#include "StdAfx.h"
+#include "DoubleLine.h"
+#include "GeoDef.h"
+
+#include <cmath>
+
+DoubleLine::DoubleLine( const AcGePoint3d& spt, const AcGePoint3d& ept, double width, bool isWorkSurface )
+    : m_startPt( spt ), m_endPt( ept ), m_width( width ), m_isWorkSurface( isWorkSurface )
+{
+    update();
+}
+
+void DoubleLine::getSEPoint( AcGePoint3d& spt, AcGePoint3d& ept ) const
+{
+    spt = m_startPt;
+    ept = m_endPt;
+}
+
+void DoubleLine::setStartPoint( const AcGePoint3d& pt )
+{
+    m_startPt = pt;
+}
+
+void DoubleLine::setEndPoint( const AcGePoint3d& pt )
+{
+    m_endPt = pt;
+}
+
+double DoubleLine::getAngle() const
+{
+    AcGeVector3d v = m_endPt - m_startPt;
+    return v.angleTo( AcGeVector3d::kXAxis, -AcGeVector3d::kZAxis );
+}
+
+double DoubleLine::getWidth() const
+{
+    return m_width;
+}
+
+bool DoubleLine::isWorkSurface() const
+{
+    return m_isWorkSurface;
+}
+
+void DoubleLine::getStartPoints( AcGePoint3d& ls, AcGePoint3d& rs ) const
+{
+    ls = m_leftStartPt;
+    rs = m_rightStartPt;
+}
+
+void DoubleLine::getEndPoints( AcGePoint3d& le, AcGePoint3d& re ) const
+{
+    le = m_leftEndPt;
+    re = m_rightEndPt;
+}
+
+void DoubleLine::appendStartPolygon( const AcGePoint3dArray& polygon )
+{
+    m_startPolygon.removeAll();
+    m_startPolygon.append( polygon );
+}
+
+void DoubleLine::appendEndPolygon( const AcGePoint3dArray& polygon )
+{
+    m_endPolygon.removeAll();
+    m_endPolygon.append( polygon );
+}
+
+void DoubleLine::getPolygon( AcGePoint3dArray& polygon )
+{
+    if( m_startPolygon.isEmpty() )
+    {
+        polygon.append( m_leftStartPt );
+        polygon.append( m_rightStartPt );
+    }
+    else
+    {
+        polygon.append( m_startPolygon );
+    }
+
+    if( m_endPolygon.isEmpty() )
+    {
+        polygon.append( m_rightEndPt );
+        polygon.append( m_leftEndPt );
+    }
+    else
+    {
+        polygon.append( m_endPolygon );
+    }
+}
+
+void DoubleLine::caclLeftPoint( double angle, AcGePoint3d& startPt1, AcGePoint3d& startPt2 )
+{
+    startPt1.x = m_startPt.x - sin( angle ) * m_width / 2;
+    startPt1.y = m_startPt.y + cos( angle ) * m_width / 2;
+
+    startPt2.x = m_startPt.x + sin( angle ) * m_width / 2;
+    startPt2.y = m_startPt.y - cos( angle ) * m_width / 2;
+}
+
+void DoubleLine::caclRightPoint( double angle, AcGePoint3d& endPt1, AcGePoint3d& endPt2 )
+{
+    endPt1.x = m_endPt.x - sin( angle ) * m_width / 2;
+    endPt1.y = m_endPt.y + cos( angle ) * m_width / 2;
+
+    endPt2.x = m_endPt.x + sin( angle ) * m_width / 2;
+    endPt2.y = m_endPt.y - cos( angle ) * m_width / 2;
+}
+
+void DoubleLine::update()
+{
+    AcGeVector3d v = m_endPt - m_startPt;
+    double angle = v.angleTo( AcGeVector3d::kXAxis, -AcGeVector3d::kZAxis );
+    caclLeftPoint( angle, m_leftStartPt, m_rightStartPt );
+    caclRightPoint( angle, m_leftEndPt, m_rightEndPt );
+}
+
+AcGeVector3d DoubleLine::getStartPointInExtendAngle() const
+{
+    return ( m_endPt - m_startPt );
+}
+
+AcGeVector3d DoubleLine::getEndPointInExtendAngle() const
+{
+    AcGeVector3d v = m_endPt - m_startPt;
+    v.rotateBy( PI, AcGeVector3d::kZAxis ); // 旋转180度
+
+    return v;
+}
+
+void DoubleLine::dealWithStartPointBoundary( const AcGeRay3d& boundaryLine )
+{
+    AcGeLine3d line( m_leftStartPt, m_leftEndPt );
+
+    AcGePoint3d pt;
+    if( Adesk::kTrue == line.intersectWith( boundaryLine, pt ) ) // 计算左侧轮廓线与边界线的交叉点
+        m_leftStartPt = pt;                        // 调整左侧轮廓线的始点坐标
+
+    line.set( m_rightStartPt, m_rightEndPt );
+    if( Adesk::kTrue == line.intersectWith( boundaryLine, pt ) ) // 计算右侧轮廓线与边界线的交叉点
+        m_rightStartPt = pt;                       // 调整右侧轮廓线的始点坐标
+}
+
+void DoubleLine::dealWithEndPointBoundary( const AcGeRay3d& boundaryLine )
+{
+    AcGeLine3d line( m_leftStartPt, m_leftEndPt );
+
+    AcGePoint3d pt;
+    if( Adesk::kTrue == line.intersectWith( boundaryLine, pt ) ) // 计算左侧轮廓线与边界线的交叉点
+        m_leftEndPt = pt;                                         // 调整左侧轮廓线的末点坐标
+
+    line.set( m_rightStartPt, m_rightEndPt );
+    if( Adesk::kTrue == line.intersectWith( boundaryLine, pt ) ) // 计算右侧轮廓线与边界线的交叉点
+        m_rightEndPt = pt;                          // 调整右侧轮廓线的末点坐标
+}

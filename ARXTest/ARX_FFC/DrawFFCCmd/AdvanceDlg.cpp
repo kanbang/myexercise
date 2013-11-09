@@ -1,0 +1,38 @@
+#include "stdafx.h"
+#include "AdvanceDlg.h"
+
+IMPLEMENT_DYNAMIC( AdvanceDlg, CDialog )
+
+AdvanceDlg::AdvanceDlg( CWnd* pParent /*=NULL*/ )
+    : CDialog( AdvanceDlg::IDD, pParent )
+    , m_dist( 0 )
+{
+
+}
+
+AdvanceDlg::~AdvanceDlg()
+{
+}
+
+void AdvanceDlg::DoDataExchange( CDataExchange* pDX )
+{
+    CDialog::DoDataExchange( pDX );
+    DDX_Text( pDX, IDC_ADVANCE_DISTANCE_EDIT, m_dist );
+    DDV_MinMaxDouble( pDX, m_dist, 0, 10000 );
+}
+
+
+BEGIN_MESSAGE_MAP( AdvanceDlg, CDialog )
+    ON_BN_CLICKED( IDOK, &AdvanceDlg::OnBnClickedOk )
+END_MESSAGE_MAP()
+
+
+// AdvanceDlg 消息处理程序
+
+void AdvanceDlg::OnBnClickedOk()
+{
+    if( UpdateData( TRUE ) )
+    {
+        OnOK();
+    }
+}

@@ -1,0 +1,145 @@
+#include "KrigingInterpolate.h"
+#include <vector>
+#include <cmath>
+
+using namespace std;
+
+extern "C"
+{
+#include <matrix2.h>	// header for mesch12b
+}
+
+#pragma comment(lib, "mesch12b.lib")
+
+/* 坐标点类 */
+template<typename T>
+struct TPoint3D
+{
+    TPoint3D() : x( 0 ), y( 0 ), z( 0 ) {}
+    TPoint3D( T xx, T yy, T zz ) : x( xx ), y( yy ), z( zz ) {}
+    T x;
+    T y;
+    T z;
+};
+
+/* 定义坐标点数组 */
+typedef TPoint3D<double> Point3D;
+typedef std::vector<Point3D> Point3DArray;
+
+// http://code.google.com/p/cnwaveanalysis/source/browse/trunk/eeganalysis/EEGAnalysis/algorithms/Kriging/kriging.h?r=32
+// 来源github上的cnwaveanalysis项目中的代码
+template<typename ITER>
+class TKriging
+{
+private:
+    MAT* m_matA;
+    PERM*	pivot;
+    //vector<int> m_Permutation;
+    size_t m_nSize;
+
+    ITER iterF;
+    double m_dSemivariance;
+
+    const double GetXYDist( Point3D& p1, Point3D& p2 )
+    {
+        return sqrt( ( p1.x - p2.x ) * ( p1.x - p2.x ) + ( p1.y - p2.y ) * ( p1.y - p2.y ) );
+    }
+
+public:
+    TKriging( const ITER first, const ITER last, double dSemivariance ) : m_dSemivariance( dSemivariance ), m_matA( 0 ), pivot( 0 ), iterF( first )
+    {
+        m_nSize = 0;
+        ITER start = first;
+        while( start != last )
+        {
+            ++m_nSize;
+            ++start;
+        }
+
+        m_matA = m_get( m_nSize, m_nSize );
+        for( size_t j = 0; j < m_nSize; j++ )
+        {
+            for( size_t i = 0; i < m_nSize; i++ )
+            {
+                if( i == m_nSize - 1 || j == m_nSize - 1 )
+                {
+                    m_matA->me[i][j] = 1;
+                    if( i == m_nSize - 1 && j == m_nSize - 1 )
+                        m_matA->me[i][j] = 0;
+                    continue;
+                }
+                m_matA->me[i][j] = GetXYDist( *( first + i ), *( first + j ) ) * dSemivariance;
+            }
+        }
+
+        pivot = px_get( m_matA->m );
+        LUfactor( m_matA, pivot );
+        /* set values of b here */
+        //x = LUsolve(LU,pivot,b,VNULL);
+    }
+
+    ~TKriging()
+    {
+        M_FREE( m_matA );
+        PX_FREE( pivot );
+    }
+
+    double GetInterpolatedZ( double xpos, double ypos )
+    {
+        VEC* b = v_get( m_nSize ), *x;
+        for( size_t i = 0; i < m_nSize - 1; i++ )
+            b->ve[i] = GetXYDist( Point3D( xpos, ypos, 0.0 ), *( iterF + i ) ) * m_dSemivariance;
+        b->ve[m_nSize - 1] = 1.0;
+
+        x = LUsolve( m_matA, pivot, b, VNULL );
+        double z = 0.0;
+
+        for( size_t i = 0; i < m_nSize - 1; i++ )
+            z += x->ve[i] * ( *( iterF + i ) ).z;
+
+        V_FREE( x );
+        V_FREE( b );
+        return z;
+    }
+};
+
+typedef TKriging< Point3DArray::iterator > KrigingV;
+typedef TKriging< Point3D* > KrigingA;
+
+// 将数据从DT_Point 转换成 Point3D类型
+static void AcGePoint3dArray_2_Point3DArray( const PointArray& datas, Point3DArray& input )
+{
+    int len = datas.size();
+    for( int i = 0; i < len; i++ )
+    {
+        DT_Point pt = datas[i];
+        input.push_back( Point3D( pt.x, pt.y, pt.z ) );
+    }
+}
+
+/* 对外使用的接口 */
+double KrigingInterpolatePoint( const PointArray& datas, const DT_Point& pt )
+{
+    Point3DArray input;
+    AcGePoint3dArray_2_Point3DArray( datas, input );
+
+    KrigingV ip( input.begin(), input.end(), 4 );
+    return ip.GetInterpolatedZ( pt.x, pt.y );
+}
+
+void KrigingInterpolatePoints( const PointArray& datas, PointArray& pts )
+{
+    Point3DArray input;
+    AcGePoint3dArray_2_Point3DArray( datas, input );
+
+    KrigingV ip( input.begin(), input.end(), 4 );
+    int len = pts.size();
+    for( int i = 0; i < len; i++ )
+    {
+        double x = pts[i].x;
+        double y = pts[i].y;
+        double z = ip.GetInterpolatedZ( x, y );
+        pts[i].z = z;
+    }
+}
+

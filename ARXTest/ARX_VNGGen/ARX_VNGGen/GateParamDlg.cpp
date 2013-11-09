@@ -1,0 +1,59 @@
+#include "stdafx.h"
+#include "GateParamDlg.h"
+#include "DefParam.h"
+
+IMPLEMENT_DYNAMIC( GateParamDlg, CDialog )
+
+GateParamDlg::GateParamDlg( CWnd* pParent /*=NULL*/ )
+    : CDialog( GateParamDlg::IDD, pParent )
+    , m_radius( 0 )
+    , m_length( 0 )
+{
+
+}
+
+GateParamDlg::~GateParamDlg()
+{
+}
+
+void GateParamDlg::DoDataExchange( CDataExchange* pDX )
+{
+    CDialog::DoDataExchange( pDX );
+    DDX_Text( pDX, IDC_GATE_RADIUS, m_radius );
+    DDX_Text( pDX, IDC_GATE_LENGTH, m_length );
+}
+
+BEGIN_MESSAGE_MAP( GateParamDlg, CDialog )
+    ON_BN_CLICKED( IDOK, &GateParamDlg::OnBnClickedOk )
+    ON_BN_CLICKED( IDC_GATE_DEF_BTN, &GateParamDlg::OnBnClickedGateDefBtn )
+END_MESSAGE_MAP()
+
+
+BOOL GateParamDlg::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+
+    m_radius = gp.m_radius;
+    m_length = gp.m_length;
+    UpdateData( FALSE );
+
+    return TRUE;
+}
+
+void GateParamDlg::OnBnClickedOk()
+{
+    if( UpdateData( TRUE ) )
+    {
+        gp.m_radius = m_radius;
+        gp.m_length = m_length;
+
+        OnOK();
+    }
+}
+
+void GateParamDlg::OnBnClickedGateDefBtn()
+{
+    m_radius = DEF_GATE_RADIUS;
+    m_length = DEF_GATE_HALF_LENGTH;
+    UpdateData( FALSE );
+}

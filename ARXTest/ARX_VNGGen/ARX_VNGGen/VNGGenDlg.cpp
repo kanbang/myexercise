@@ -1,0 +1,68 @@
+#include "stdafx.h"
+#include "VNGGenDlg.h"
+
+/* 全局函数(实现在ARX_VNGGen.cpp) */
+void ARX_VNGGen( const CString& dbPath, const CString& pwd, const AcGePoint3d& basePt );
+
+IMPLEMENT_DYNAMIC( VNGGenDlg, CAcUiDialog )
+
+VNGGenDlg::VNGGenDlg( CWnd* pParent /*=NULL*/ )
+    : CAcUiDialog( VNGGenDlg::IDD, pParent )
+    , m_dbPath( _T( "" ) )
+{
+
+}
+
+VNGGenDlg::~VNGGenDlg()
+{
+}
+
+void VNGGenDlg::DoDataExchange( CDataExchange* pDX )
+{
+    CAcUiDialog::DoDataExchange( pDX );
+    DDX_Text( pDX, IDC_MVSS_DB_PATH_EDIT, m_dbPath );
+}
+
+
+BEGIN_MESSAGE_MAP( VNGGenDlg, CAcUiDialog )
+    ON_BN_CLICKED( IDC_DB_PATH_SELECT_BTN, &VNGGenDlg::OnBnClickedDbPathSelectBtn )
+    ON_BN_CLICKED( IDOK, &VNGGenDlg::OnBnClickedOk )
+END_MESSAGE_MAP()
+
+void VNGGenDlg::OnBnClickedDbPathSelectBtn()
+{
+    CFileDialog openDialog(
+        TRUE,
+        _T( "mdb" ),
+        NULL, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
+        _T( "Access2003数据库(*.mdb)|*.mdb||" ) );
+
+    if( IDOK == openDialog.DoModal() )
+    {
+        m_dbPath = openDialog.GetPathName();
+        UpdateData( FALSE );
+    }
+}
+
+void VNGGenDlg::OnBnClickedOk()
+{
+    if( !UpdateData( TRUE ) ) return;
+
+    if( m_dbPath.GetLength() == 0 )
+    {
+        MessageBox( _T( "请选择导出的MVSS网络图数据库!" ) );
+        return;
+    }
+
+    CString pwd = _T( "MVSSNJF" );
+    ARX_VNGGen( m_dbPath, pwd, AcGePoint3d( 0, 0, 0 ) );
+
+    OnOK();
+}
+
+BOOL VNGGenDlg::OnInitDialog()
+{
+    CAcUiDialog::OnInitDialog();
+
+    return TRUE;
+}

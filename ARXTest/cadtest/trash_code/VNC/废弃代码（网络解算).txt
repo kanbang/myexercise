@@ -1,0 +1,57 @@
+在bool VentNetworkCalc::unitIterate()方法的末尾添加
+	//if(ret)
+	//{
+	//	EdgeList leftEdge;
+	//	findEdgesNotInCycle(cl, leftEdge); // 查找不在任何回路中的剩余分支
+	//	caclLeftEdgeQ(leftEdge);           // 计算剩余分支的流量
+	//}
+
+
+void VentNetworkCalc::caclLeftEdgeQ( EdgeList& leftEdge )
+{
+	for(EdgeList::iterator itr=leftEdge.begin(); itr!=leftEdge.end(); itr++)
+	{
+		Digraph::Arc e = *itr;
+		Digraph::Node u = dg.source(e);
+		Digraph::Node v = dg.target(e);
+		double sq1 = 0;
+		for(Digraph::InArcIt ie(dg, u); ie!=INVALID; ++ie)
+		{
+			sq1 += datas[ie]->q;
+		}
+		double sq2 = 0;
+		for(Digraph::OutArcIt oe(dg, v); oe!=INVALID; ++oe)
+		{
+			sq2 += datas[oe]->q;
+		}
+		// 取"流入流量"和"流出流量"中最大的一个
+		// 有些源汇分支的"流入流量"或"流出流量"为0
+		datas[e]->q = max(sq1, sq2);
+	}
+}
+
+
+
+	void findEdgesNotInCycle(CycleList& cl, EdgeList& leftEdge); // 不包含在任何回路中的"剩余分支"
+	void caclLeftEdgeQ(EdgeList& leftEdge);// 计算剩余分支的风量(采用节点流量守恒方程计算)
+
+void VentNetworkCalc::findEdgesNotInCycle( CycleList& cl, EdgeList& leftEdge )
+{
+	for(Digraph::ArcIt e(dg); e!=INVALID; ++e)
+	{
+		bool ret = false;
+		for(CycleList::iterator itr=cl.begin(); itr!=cl.end(); itr++)
+		{
+			if((*itr)->isEdgeInCycle(e))
+			{
+				ret = true;
+				break;
+			}
+		}
+		if(!ret)
+		{
+			// 分支不存在任何回路中!
+			leftEdge.push_back(e);
+		}
+	}
+}

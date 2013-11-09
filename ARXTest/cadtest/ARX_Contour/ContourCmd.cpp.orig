@@ -1,0 +1,235 @@
+#include "stdafx.h"
+#include "ContourCmd.h"
+
+#include "GasDataLink.h"
+#include "GasContourType.h"
+
+#include "TriContour.h"
+#include "ContourHelper.h"
+
+#include "DrawContourDlg.h"
+#include "ContourParamDlg.h"
+
+#include "ConvexHullHelper.h"
+#include "PolyLineJig.h"
+
+#include "CADDrawHelper.h"
+
+#include "../GasGE/PointGE.h"
+#include "../ArxHelper/HelperClass.h"
+
+/* 全局函数(实现在ReadData.cpp) */
+extern void ReadDataFromFile(const CString& fileName, AcGePoint3dArray& datas);
+
+static void ReadDataByGasType(GasContourType gct, AcGePoint3dArray& datas)
+{
+	// 查找所有的GFP
+	AcDbObjectIdArray objIds;
+	ArxDataTool::GetEntsByType(GetGasTypeName(gct), objIds);
+	if(objIds.isEmpty()) return;
+
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	int len = objIds.length();
+	for(int i=0;i<len;i++)
+	{
+		AcDbObject* pObj;
+		if(Acad::eOk != pTrans->getObject(pObj, objIds[i], AcDb::kForRead)) continue;
+
+		PointGE* pGE = PointGE::cast(pObj); // 所有的瓦斯图元都是从PointGE派生
+
+		// 提取x,y坐标
+		AcGePoint3d pt = pGE->getInsertPt();
+
+		// 提取特征z值
+		GasDataLink dl;
+		dl.setDataSource(objIds[i]);
+		dl.name = GetGasFieldName(gct);		
+		if(dl.updateData(false))
+		{
+			pt.z = dl.z;
+		}
+
+		datas.append(pt);
+	}
+	actrTransactionManager->endTransaction();
+}
+
+void ContourCmd::DrawGasContour()
+{
+	CAcModuleResourceOverride myResources;
+	DrawContourDlg dlg;
+	if(IDOK == dlg.DoModal())
+	{
+		GasContourType gct = (GasContourType)dlg.m_gct;
+		double dz = dlg.m_dz;
+
+		AcGePoint3dArray datas;
+		ReadDataByGasType(gct, datas);
+		if(datas.isEmpty()) 
+		{
+			CString msg;
+			msg.Format(_T("没有%s可用，请使用菜单或工具栏命令添加!!!"), GetGasFieldName(gct));
+			AfxMessageBox(msg);
+			return;
+		}
+
+		CString layerName = GetGasContourLayerName(gct);
+
+		// 删除图层上的所有图形实体
+		LayerHelper::DeleteAllEntitiesOnLayer(layerName);
+
+		// 切换图层
+		LayerSwitch(layerName, true);
+
+		// 绘制等值线
+		ContourHelper::DrawCountour(datas, dz);
+	}
+}
+
+static void SetContourParam(bool bSmooth, double textHeight)
+{
+	AcDbObjectIdArray objIds;
+	ArxDataTool::GetEntsByType(_T("TriContour"), objIds);
+	if(objIds.isEmpty()) return;
+
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcDbObject* pObj;
+		if(Acad::eOk != pTrans->getObject(pObj, objIds[i], AcDb::kForWrite)) continue;
+
+		TriContour* pContour = TriContour::cast(pObj);
+		pContour->setTextHeight(textHeight);
+		pContour->smooth(bSmooth);
+	}
+	actrTransactionManager->endTransaction();
+}
+
+void ContourCmd::ShowContourParamDlg()
+{
+	CAcModuleResourceOverride myResources;
+	ContourParamDlg dlg;
+	if(IDOK == dlg.DoModal())
+	{
+		SetContourParam(dlg.m_bSmooth!=0, dlg.m_textHeight);
+	}
+}
+
+void ContourCmd::RestoreLabel()
+{
+	AcDbObjectIdArray objIds;
+	ArxDataTool::GetEntsByType(_T("TriContour"), objIds);
+	if(objIds.isEmpty()) return;
+
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcDbObject* pObj;
+		if(Acad::eOk != pTrans->getObject(pObj, objIds[i], AcDb::kForWrite)) continue;
+
+		TriContour* pContour = TriContour::cast(pObj);
+		pContour->label();
+	}
+	actrTransactionManager->endTransaction();
+}
+
+void ContourCmd::GridCaclTest()
+{
+	AcGePoint3dArray pts;
+
+	PolyLineJig jig;
+	if(!jig.doJig(pts)) return;
+
+	AcGePoint3dArray H;
+	//Graham_ConvexHull_3D(pts, H); // 使用Graphm算法
+	Melkman_ConvexHull_3D(pts, H);  // 使用Melkman算法
+
+	acutPrintf(_T("\n使用闭合多边形绘制凸包"));
+	DrawPLines(H, true);
+
+	// 使用AcDbExtent获取最小边界盒
+	AcDbExtents ext;
+	int len = H.length();
+	for(int i=0;i<len;i++) ext.addPoint(H[i]);
+
+	acutPrintf(_T("\n最小点:(%.3f, %.3f,  %.3f)"), ext.minPoint());
+	acutPrintf(_T("\n最大点:(%.3f, %.3f,  %.3f)"), ext.maxPoint());
+
+	AcGePoint3dArray datas;
+	ReadDataFromFile(_T("D:\\TestSite.txt"), datas);
+	double z = ContourHelper::GridCacl(datas, ext.minPoint(), ext.maxPoint(), 10, 4);
+
+	CString msg;
+	msg.Format(_T("计算z值:%.5f"), z);
+	AfxMessageBox(msg);
+	//acutPrintf(_T("\n计算z值:%.5f"), z);
+}
+
+void ContourCmd::PointCaclTest()
+{
+	AcGePoint3d pt;
+	if(!ArxUtilHelper::PromptPt(_T("\n请选择一个坐标"), pt)) return;
+
+	AcGePoint3dArray datas;
+	ReadDataFromFile(_T("D:\\TestSite.txt"), datas);
+	double z = ContourHelper::PointCacl(datas, pt, 4);
+
+	CString msg;
+	msg.Format(_T("坐标:(%.3f, %.3f)\nz值:%.3f"), pt.x, pt.y, z);
+	AfxMessageBox(msg);
+}
+
+void ContourCmd::PolyLineJigTest()
+{
+	AcGePoint3dArray pts;
+
+	PolyLineJig jig;
+	if(!jig.doJig(pts))
+	{
+		acutPrintf(_T("\njig过程失败"));
+	}
+	else
+	{
+		acutPrintf(_T("\njig过程成功"));
+		acutPrintf(_T("\n寻找凸包..."));
+
+		AcGePoint3dArray H;
+		//Graham_ConvexHull_3D(pts, H); // 使用Graham算法
+		Melkman_ConvexHull_3D(pts, H);  // 使用Melkman算法
+
+		acutPrintf(_T("\n使用闭合多边形绘制凸包"));
+		DrawPLines(H, true);
+
+		acutPrintf(_T("\n使用椭圆绘制原始点"));
+		int len = pts.length();
+		for(int i=0;i<len;i++)
+		{
+			DrawEllipse(pts[i], 30, 30);
+		}
+	}
+}
+
+void ContourCmd::twt()
+{
+	DrawMText(AcGePoint3d(100, 200, 0), 0, _T(" 我的太阳 "), 50);
+	DrawMText(AcGePoint3d(100, 300, 0), 0, _T(" 我的太阳 "), 20);
+	DrawMText(AcGePoint3d(100, 400, 0), 0, _T(" 1234.56 "), 50);
+	DrawMText(AcGePoint3d(100, 500, 0), 0, _T(" 1234.56 "), 10);
+	DrawMText(AcGePoint3d(100, 600, 0), 0, _T("  1234.56  "), 10);
+	DrawMText(AcGePoint3d(100, 700, 0), 0, _T("1234.56"), 10);
+
+	AcGePoint3d pt1(0, 0, 0), pt2(10, 0, 0), pt3(20, 5, 0);
+	AcGeLineSeg3d line(pt1, pt2);
+	double dist = line.distanceTo(pt3);
+
+	acutPrintf(_T("\n距离: %.3f"), dist);
+
+	AcGePoint3d pt = line.closestPointTo(pt3);
+	acutPrintf(_T("\n最近点:(%.3f, %.3f, %.3f)"), pt.x, pt.y, pt.z);
+}
+
+void ContourCmd::DrawBoundary()
+{
+	// 未实现
+	// 数据来源暂不明确
+}

@@ -1,0 +1,18 @@
+加载arx模块，需要提供一个service name，为了简化外部api的调用，使得用户可以只需要提供arx模块路径即可加载模块
+
+系统对服务名称做出如下的格式要求：
+1）确定arx模块的输出文件名称，例如TestPlugin.arx
+2）在arx模块中，定义服务名称，格式如下：
+	${arx模块名称大写}_SERVICE_NAME
+      那么，TestPlugin.arx的服务名称就是"TESTPLUGIN_SERVICE_NAME"
+3）在arx模块的acrxEntryPoint.cpp文件中"注册/删除服务"，例如
+
+#ifndef MINEGE_SERVICE_NAME
+    #define MINEGE_SERVICE_NAME _T("MINEGE_SERVICE_NAME")
+#endif
+
+// 注册服务
+acrxRegisterService(MINEGE_SERVICE_NAME);
+
+// 删除服务
+delete acrxServiceDictionary->remove(MINEGE_SERVICE_NAME);

@@ -1,0 +1,9 @@
+1、小程序使用c#编写，需要.net framework运行时支持
+如果程序不能运行，可能是电脑上没有安装.net framework运行时，请下载并安装
+http://www.microsoft.com/downloads/details.aspx?familyid=333325fd-ae52-4e35-b531-508d977d32a6&displaylang=zh-cn
+
+另外也可以选择安装vcredist_x86.exe
+
+2、data目录存放的是通风网路拓扑数据的测试文件
+
+3、GraphvizDraw.7z使用VS2008+C#编写的源代码

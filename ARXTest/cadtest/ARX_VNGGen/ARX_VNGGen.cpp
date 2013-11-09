@@ -1,0 +1,348 @@
+#include "StdAfx.h"
+
+#include "VNG_Node.h"
+#include "VNG_Edge.h"
+#include "VNG_ParamHelper.h"
+
+#include "../MineGE/HelperClass.h"
+#include "../ArxHelper/HelperClass.h"
+
+#include "../GraphTool/BuildNetwork.h"
+#include "../VNGGen/VNGGen.h"
+
+/* 通风网络图所在的图层*/
+#define VNG_LAYER _T("通风网络图")
+
+#define PI 3.1415926535897932384626433832795
+
+static void MapEdgeInfoWithObjId( Digraph& dg, ObjectIdMap& om, EdgeInfoArray& eis, AcDbObjectIdArray& objIds )
+{
+    for( EdgeInfoArray::iterator itr = eis.begin(); itr != eis.end(); itr++ )
+    {
+        EdgeInfo* ei = *itr;
+        for( Digraph::ArcIt e( dg ); e != INVALID; ++e )
+        {
+            if( dg.id( e ) == ei->id )
+            {
+                objIds.append( om[e] );
+                break;
+            }
+        }
+    }
+}
+
+static void GetDataObjects( const AcDbObjectIdArray& objIds, AcDbObjectIdArray& dObjIds )
+{
+    int len = objIds.length();
+    for( int i = 0; i < len; i++ )
+    {
+        AcDbObjectId dObjId;
+        DataHelper::GetDataObject( objIds[i], dObjId );
+        dObjIds.append( dObjId );
+    }
+}
+
+static AcGePoint3d GetNodePt( const NodeInfoArray& nis, int id )
+{
+    AcGePoint3d pt;
+    for( NodeInfoArray::const_iterator itr = nis.begin(); itr != nis.end(); ++itr )
+    {
+        NodeInfo* ni = *itr;
+        if( ni->id == id )
+        {
+            pt.x = ni->x;
+            pt.y = ni->y;
+            break;
+        }
+    }
+    return pt;
+}
+
+static AcGePoint3d CaclThirdPt( const AcGePoint3d& spt, const AcGePoint3d& ept, const AcGePoint3dArray& cnpt )
+{
+    AcGeLine3d line( spt, ept );
+
+    // 计算最大距离
+    double d = line.distanceTo( cnpt[0] );
+    int di = 0;
+    int n = cnpt.length();
+    for( int i = 1; i < n; i++ )
+    {
+        double dd = line.distanceTo( cnpt[i] );
+        if( dd > d )
+        {
+            di = i;
+            d = dd;
+        }
+    }
+
+    AcGeVector3d v = ept - spt;
+    AcGePoint3d pt = spt + v * 0.5;
+
+    acutPrintf( _T( "\nminD: %.5f" ), d );
+
+    if( d < 0.1 ) // 近似等于0
+    {
+        //acutPrintf(_T("\n偏移一个单位..."));
+        v.normalize();
+        v.rotateBy( PI / 2, AcGeVector3d::kZAxis );
+
+        pt += v * 1.0; // 偏移1个单位
+    }
+    else
+    {
+        //acutPrintf(_T("\n取最大距离..."));
+        AcGeVector3d v2 = cnpt[di] - line.closestPointTo( cnpt[di] );
+        pt += v2;
+    }
+    return pt;
+}
+
+static void DrawEdges( /* 网络图 */
+    Digraph& dg,
+    ObjectIdMap& om,
+    /* 节点和分支的几何信息 */
+    NodeInfoArray& nis,
+    EdgeInfoArray& eis,
+    /* 绘图参数 */
+    const AcGePoint3d& basePt,
+    double m_arrowWidth,
+    double m_arrowLength,
+    double m_textHeight,
+    bool m_needEdge )
+{
+    AcDbObjectIdArray objIds;
+    MapEdgeInfoWithObjId( dg, om, eis, objIds );
+
+    // 获取图元的数据对象
+    AcDbObjectIdArray dObjIds;
+    GetDataObjects( objIds, dObjIds );
+
+    // 坐标系基准偏移向量
+    AcGeVector3d baseVector = basePt.asVector();
+
+    //assert(dObjIds.length() == eis.size());
+    int len = dObjIds.length();
+    for( int i = 0; i < len; i++ )
+    {
+        EdgeInfo* ei = eis[i];
+
+        VNG_Edge* pEdge = new VNG_Edge();
+
+        // 关联数据对象
+        // 因为存在虚分支，dObjIds[i]可能是空的
+        pEdge->setDataObject( dObjIds[i] );
+
+        AcGePoint3d spt = GetNodePt( nis, ei->sn );
+        AcGePoint3d ept = GetNodePt( nis, ei->tn );
+
+        AcGePoint3dArray cnpt;
+        int n = ei->cnx.size();
+        for( int i = 0; i < n; i++ )
+        {
+            AcGePoint3d pt;
+            pt.x = ei->cnx[i];
+            pt.y = ei->cny[i];
+            cnpt.append( pt );
+        }
+
+        pEdge->m_spt = spt + baseVector;
+        pEdge->m_ept = ept + baseVector;
+        pEdge->m_pt = CaclThirdPt( spt, ept, cnpt ) + baseVector;
+
+        // 读取箭头参数
+        pEdge->m_arrowWidth = m_arrowWidth;
+        pEdge->m_arrowLength = m_arrowLength;
+
+        // 读取文字标注信息
+        AcGePoint3d tpt;
+        tpt.x = ei->tx;
+        tpt.y = ei->ty;
+
+        pEdge->m_tpt = tpt + baseVector;
+        pEdge->m_textHeight = m_textHeight;
+        pEdge->m_needEdge = m_needEdge;
+
+        pEdge->m_id = ei->id;
+
+        // 提交到数据库
+        ArxUtilHelper::PostToModelSpace( pEdge );
+    }
+}
+
+static void DrawNodes( Digraph& dg,
+                       ObjectIdMap& om,
+                       /* 节点和分支的几何信息 */
+                       NodeInfoArray& nis,
+                       /* 绘图参数 */
+                       const AcGePoint3d& basePt,
+                       double m_textHeight )
+{
+    // 坐标系基准偏移向量
+    AcGeVector3d baseVector = basePt.asVector();
+
+    int count = nis.size();
+    for( int i = 0; i < count; i++ )
+    {
+        NodeInfo* ni = nis[i];
+
+        VNG_Node* pNode = new VNG_Node();
+
+        // 插入点坐标
+        AcGePoint3d pt;
+        pt.x = ni->x;
+        pt.y = ni->y;
+        pNode->m_pt = ( pt + baseVector );
+        // 椭圆横轴和纵轴
+        pNode->m_width = ni->cx;
+        pNode->m_height = ni->cy;
+        // 文字高度
+        pNode->m_textHeight = m_textHeight;
+        // 文字标注名称
+        pNode->m_id = ni->id;
+
+        // 提交到数据库
+        ArxUtilHelper::PostToModelSpace( pNode );
+    }
+}
+
+static void DrawVentNetworkGraph( /* 网络图 */
+    Digraph& dg,
+    ObjectIdMap& om,
+    /* 节点和分支的几何信息 */
+    GraphInfo& gi,
+    NodeInfoArray& nis,
+    EdgeInfoArray& eis,
+    /* 绘图参数 */
+    const AcGePoint3d& basePt,
+    double m_nodeTextHeight,
+    double m_arrowWidth,
+    double m_arrowLength,
+    double m_edgeTextHeight,
+    bool m_needEdge )
+{
+    acutPrintf( _T( "\n根据解析得到的几何信息绘制网络图..." ) );
+
+    // 获取当前图层名称
+    CString curLayer = LayerHelper::GetCurrentLayerName();
+    acutPrintf( _T( "\n当前图层:【%s】" ), curLayer );
+
+    if( !LayerHelper::IsLayerExist( VNG_LAYER ) )
+    {
+        LayerHelper::AddLayer( VNG_LAYER ); // 如果存在则不建立
+    }
+    else
+    {
+        // 删除图层上的所有图形实体
+        LayerHelper::DeleteAllEntitiesOnLayer( VNG_LAYER );
+    }
+    // 切换到图层VNG_LAYER
+    LayerHelper::SetCurrentLayer( VNG_LAYER );
+
+    // 绘制分支
+    DrawEdges( dg, om, nis, eis, basePt, m_arrowWidth, m_arrowLength, m_edgeTextHeight, m_needEdge );
+
+    // 绘制节点
+    DrawNodes( dg, om, nis, basePt, m_nodeTextHeight );
+
+    // 切换回原来的图层
+    LayerHelper::SetCurrentLayer( curLayer );
+}
+
+/* 打印图几何信息(测试用) */
+static void PrintGraphInfo( GraphInfo& gi )
+{
+    acutPrintf( _T( "\n缩放因子ratio = %.3f\t图的宽度width = %.3f\t图的高度height = %.3f\n" ), gi.ratio, gi.width, gi.height );
+}
+
+static void PrintOneNodeInfo( NodeInfo* ni )
+{
+    acutPrintf( _T( "\n节点名称name = v%d\t坐标(x=%.3f, y=%.3f)\t宽度width=%.3f\t高度=%.3f\n" ), ni->id, ni->x, ni->y, ni->cx, ni->cy );
+}
+
+static void PrintOneEdgeInfo( EdgeInfo* ei )
+{
+    acutPrintf( _T( "\n分支名称name = e%d\t始节点:%d\t末节点:%d\n文字标注位置(x=%.3f, y=%.3f)\n" ), ei->id, ei->sn, ei->tn, ei->tx, ei->ty );
+    int n = ei->cnx.size();
+    for( int i = 0; i < n; i++ )
+    {
+        acutPrintf( _T( "\t控制点:%d\t (x=%.3f, y=%.3f)\n" ), i + 1, ei->cnx[i], ei->cny[i] );
+    }
+    acutPrintf( _T( "\n" ) );
+}
+
+static void PrintNodeInfo( NodeInfoArray& nis )
+{
+    NodeInfoArray::iterator itr;
+    for( itr = nis.begin(); itr != nis.end(); itr++ )
+    {
+        PrintOneNodeInfo( *itr );
+    }
+}
+
+static void PrintEdgeInfo( EdgeInfoArray& eis )
+{
+    EdgeInfoArray::iterator itr;
+    for( itr = eis.begin(); itr != eis.end(); itr++ )
+    {
+        PrintOneEdgeInfo( *itr );
+    }
+}
+
+void ARX_VNGGen( const AcGePoint3d& basePt )
+{
+    // 1) 构建网络
+    acutPrintf( _T( "\n1) 创建网络" ) );
+    Digraph dg;
+    ObjectIdMap om( dg );
+    if( !BuildNetwork( dg, om ) ) return /*false*/;
+
+    // 2) 读取网络图绘制参数(保存在词典VNG_PARAM_DICT中)
+    acutPrintf( _T( "\n2) 读取参数" ) );
+    // 图形参数
+    double m_nodeSep;
+    double m_rankSep;
+    double m_graphRatio;
+    double m_graphWidth;
+    double m_graphHeight;
+    bool m_useDefWH;
+
+    // 节点参数
+    double m_nodeWidth;
+    double m_nodeHeight;
+    double m_nodeTextHeight;
+
+    // 分支参数
+    double m_arrowWidth;
+    double m_arrowLength;
+    double m_edgeTextHeight;
+    bool m_needEdge;
+
+    VNG_ParamHelper::ReadParams( m_nodeSep, m_rankSep,
+                                 m_graphRatio, m_graphWidth, m_graphHeight, m_useDefWH,
+                                 m_nodeWidth, m_nodeHeight, m_nodeTextHeight,
+                                 m_arrowWidth, m_arrowLength, m_edgeTextHeight, m_needEdge );
+
+    // 3) 调用VNGGen.dll生成网络图，计算几何信息
+    acutPrintf( _T( "3) 调用VNGGen.dll生成网络图\n" ) );
+    GraphInfo gi;                     // 图的几何信息
+    NodeInfoArray nis;                // 节点几何信息
+    EdgeInfoArray eis;                // 分支几何信息
+    if( VNGGen( dg, m_nodeSep, m_rankSep,
+                m_graphRatio, m_graphWidth, m_graphHeight, m_useDefWH,
+                m_nodeWidth, m_nodeHeight, m_nodeTextHeight, m_edgeTextHeight,
+                gi, nis, eis ) )
+    {
+        acutPrintf( _T( "\n生成网络图成功!" ) );
+        PrintGraphInfo( gi );
+        PrintNodeInfo( nis );
+        PrintEdgeInfo( eis );
+
+        // 绘制网络图
+        DrawVentNetworkGraph( dg, om, gi, nis, eis, basePt, m_nodeTextHeight, m_arrowWidth, m_arrowLength, m_edgeTextHeight, m_needEdge );
+
+        // 删除内存
+        ClearNodeInfoArray( nis );
+        ClearEdgeInfoArray( eis );
+    }
+}

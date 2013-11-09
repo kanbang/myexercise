@@ -1,0 +1,875 @@
+#include "StdAfx.h"
+#include "MineGE.h"
+
+#include "config.h"
+#include "DataHelperImpl.h"
+#include "CurDrawTool.h"
+
+#include "../MineGEDraw/MineGEDrawSystem.h"
+#include "../ArxDbgXdata/ArxDbgXdata.h"
+
+/*
+ * 每个图元都包含一个扩展词典，图元的数据对象存储在扩展词典中
+ * 目前，数据对象对应的key是固定的(参见DATA_OBJECT_EXT_DICT_KEY的定义)
+ *
+ * 判断词典中是否包含数据对象(DataObject)
+ * 词典是一种数据结构，包含很多"键-值"对(key-value pair)，类似于C++ STL中的map
+ * key是字符串，value是DataObject(从AcDbObject派生的自定义类)
+ */
+static bool HasDataObject( const AcDbObjectId& dictId )
+{
+    AcDbDictionary* pDict;
+    if( Acad::eOk != acdbOpenObject( pDict, dictId, AcDb::kForRead ) ) return false;
+
+    AcDbObjectId objId;
+    bool ret = pDict->has( DATA_OBJECT_EXT_DICT_KEY );
+    pDict->close();
+
+    return ret;
+}
+
+/*
+ * 每个图元都包含一个扩展词典，图元的数据对象存储在扩展词典中
+ * 目前，数据对象对应的key是固定的(参见DATA_OBJECT_EXT_DICT_KEY的定义)
+ *
+ * 向词典中增加数据对象(DataObject)
+ */
+static AcDbObjectId CreateDataObject( const AcDbObjectId& dictId,
+                                      const CString& type,
+                                      const AcDbObjectId& objId )
+{
+    // 打开词典，获取词典对象指针
+    AcDbDictionary* pDict;
+    if( Acad::eOk != acdbOpenObject( pDict, dictId, AcDb::kForWrite ) ) return AcDbObjectId::kNull;
+
+    // 创建数据对象
+    DataObject* pDO = new DataObject();
+    // 设置关联的图元id
+    pDO->setGE( objId );
+    // 记录类型名称
+    pDO->setType( type );
+    // 初始化数据
+    // 从系统中读取type包含的所有字段
+    // 根据字段的个数n，添加n个空字符串
+    pDO->initData();
+
+    // 向词典中添加数据对象
+    // 如果不成功，删除数据对象指针；
+    // 成功，则CAD给数据对象分配一个ID，同时关闭数据对象(!!!必须要关闭图形对象!!!)
+    AcDbObjectId dbObjId;
+    if( Acad::eOk != pDict->setAt( DATA_OBJECT_EXT_DICT_KEY, pDO, dbObjId ) )
+    {
+        // 添加不成功，删除数据对象指针
+        delete pDO;
+    }
+    else
+    {
+        // 添加成功，则CAD给数据对象分配一个ID(dbObjId)
+        // 同时关闭数据对象(!!!必须要关闭图形对象!!!)
+        pDO->close();
+    }
+    // 关闭词典对象指针
+    pDict->close();
+
+    // 返回数据对象ID
+    return dbObjId;
+}
+
+/*
+ * 每个图元都包含一个扩展词典，图元的数据对象存储在扩展词典中
+ * 目前，数据对象对应的key是固定的(参见DATA_OBJECT_EXT_DICT_KEY的定义)
+ *
+ * 从词典中读取数据对象(DataObject)
+ */
+static AcDbObjectId GetDataObject( const AcDbObjectId& dictId )
+{
+    // 判断ID是否有效
+    if( dictId.isNull() ) return AcDbObjectId::kNull;
+
+    // 打开词典，获取词典对象指针
+    AcDbDictionary* pDict;
+    if( Acad::eOk != acdbOpenObject( pDict, dictId, AcDb::kForRead ) ) return AcDbObjectId::kNull;
+
+    // 获取数据对象ID
+    // 目前数据对象对应的KEY是固定的(key = DATA_OBJECT_EXT_DICT_KEY)
+    AcDbObjectId objId;
+    pDict->getAt( DATA_OBJECT_EXT_DICT_KEY, objId );
+
+    // 关闭词典对象指针
+    pDict->close();
+
+    return objId;
+}
+
+/*
+ * 根据图元的类名称向可视化系统(MineGEDrawSystem)请求可视化效果对象指针
+ */
+static MineGEDraw* GetCurrentDrawPointer( const CString& type )
+{
+    MineGEDraw* pDraw = 0;
+
+    CString draw;
+    if( GetCurDraw( type, draw ) )
+    {
+        MineGEDrawSystem* pDrawSystem = MineGEDrawSystem::GetInstance();
+        if( pDrawSystem != 0 )
+        {
+            pDraw = pDrawSystem->getGEDraw( type, draw );
+        }
+    }
+    return pDraw;
+}
+
+/*
+ * 从数据对象(DataObject)中读取数据
+ * 读取数据功能主要通过DataHelperImpl类辅助实现
+ * 参数：
+ *		objId  -- 数据对象ID
+ *		names  -- 要读取的字段数组
+ *		values -- 字段数据对应的数据数组
+ */
+static bool GetPropertyDataFromDataObject( const AcDbObjectId& objId, const AcStringArray& names, AcStringArray& values )
+{
+    // 打开数据对象，并获取数据对象指针
+    DataObject* pDO;
+    if( Acad::eOk != acdbOpenObject( pDO, objId, AcDb::kForRead ) ) return false;
+
+    // 数据对象操作辅助类
+    DataHelperImpl dh( pDO );
+
+    // 依次读取数据
+    int len = names.length();
+    for( int i = 0; i < len; i++ )
+    {
+        // names[i]的类型是AcString(ARX内部提供的一个字符串类)
+        // 通过AcString::kACharPtr()方法直接返回字符串数组
+        // 读取数据
+        CString value;
+        bool ret = dh.getPropertyData( names[i].kACharPtr(), value );
+        // 记录到数据数组中
+        values.append( value );
+    }
+    // 关闭数据对象指针(!!必须要关闭对象指针!!)
+    pDO->close();
+
+    return true;
+}
+
+
+/* 辅助方法：长整数long转成RGB格式 */
+// DWORD <==> Adesk::UInt32 <==> unsigned long
+// Adesk::UInt8 <==> unsigned char
+static void LONG2RGB( Adesk::UInt32 rgbColor, Adesk::UInt8& r, Adesk::UInt8& g, Adesk::UInt8& b )
+{
+    // 下面2段代码是等价的
+
+    /*r = ( rgbColor & 0xffL );
+    g = ( rgbColor & 0xff00L ) >> 8;
+    b = rgbColor >> 16;*/
+
+    r = GetRValue( rgbColor );
+    g = GetGValue( rgbColor );
+    b = GetBValue( rgbColor );
+}
+
+/* 获取CAD绘图窗口背景色(通常情况下是黑色) */
+static bool GetBackgroundColor( Adesk::UInt8& r, Adesk::UInt8& g, Adesk::UInt8& b )
+{
+    // 获取cad当前的所有颜色设置 <==> CAD窗口右键菜单"选项"->"显示"->"颜色"
+    AcColorSettings cs;
+    if( !acedGetCurrentColors( &cs ) ) return false;
+
+    // 读取模型空间的窗口背景颜色
+    DWORD rgbColor = cs.dwGfxModelBkColor;
+    LONG2RGB( rgbColor, r, g, b );
+
+    return true;
+}
+
+/* ARX向导生成的代码 */
+Adesk::UInt32 MineGE::kCurrentVersionNumber = 1 ;
+
+/* 有修改，该宏使得MineGE成为抽象类 */
+ACRX_NO_CONS_DEFINE_MEMBERS ( MineGE, AcDbEntity )
+
+/* 构造函数 */
+MineGE::MineGE() : m_pCurrentGEDraw( 0 )
+{
+    //acutPrintf(_T("\nMineGE::MineGE()..."));
+}
+
+/* 析构函数 */
+MineGE::~MineGE ()
+{
+    //acutPrintf(_T("\nMineGE::~MineGE()..."));
+    // 将可视化效果对象指针重置为NULL，避免出现野指针
+    m_pCurrentGEDraw = 0;
+}
+
+/*
+ * 返回图元对象的类名称
+ * 注：使用了虚函数isA()，isA()方法由
+ *		ACRX_DECLARE_MEMBERS / ACRX_NO_CONS_DEFINE_MEMBERS
+ * 这2个宏声明和实现
+ */
+CString MineGE::getTypeName() const
+{
+    return this->isA()->name();
+}
+
+void MineGE::initPropertyData()
+{
+    //assertWriteEnabled();
+
+    // 判断数据对象是否为空，
+    // 如果不为空，表示已经数据对象已经初始化过了
+    if( !m_dataObjectId.isNull() ) return;
+
+    // 提升打开权限，以kForWrite状态打开
+    Acad::ErrorStatus es = upgradeOpen();
+    if( es == Acad::eOk || es == Acad::eWasOpenForWrite )
+    {
+        // 创建并打开扩展词典，返回ID
+        createExtensionDictionary();
+        AcDbObjectId dictId = extensionDictionary();
+        // 创建数据对象并添加到扩展词典中
+        m_dataObjectId = CreateDataObject( dictId, getTypeName(), objectId() );
+    }
+    if( es == Acad::eOk )
+    {
+        // 如果提升前是kForRead状态，则还原打开权限
+        downgradeOpen();
+    }
+}
+
+/* 返回数据对象ID */
+AcDbObjectId MineGE::getDataObject() const
+{
+    assertReadEnabled();
+
+    return m_dataObjectId;
+}
+
+/*
+ * 初始化图元的可视化效果参数
+ * 执行2个初始化动作：
+ *		1) 获取当前可视化效果对象指针(m_pCurrentGEDraw)
+ *		2) 计算所有的可视化效果的附加参数并保存到扩展数据
+ */
+void MineGE::initDraw()
+{
+    if( m_pCurrentGEDraw == 0 )
+    {
+        // 提升打开权限，以kForWrite状态打开
+        Acad::ErrorStatus es = upgradeOpen();
+        if( es == Acad::eOk || es == Acad::eWasOpenForWrite )
+        {
+            initNewObjectExtraParams();
+        }
+        if( es == Acad::eOk )
+        {
+            // 如果提升前是kForRead状态，则还原打开权限
+            downgradeOpen();
+        }
+    }
+}
+
+void MineGE::updateDrawParams( MineGEDraw* pGEDraw )
+{
+    if( pGEDraw != 0 )
+    {
+        // 1) 从派生类中读取关键参数，并传递给可视化效果对象
+        writeKeyParamToGEDraw( pGEDraw );
+        // 2) 重新计算附加参数
+        pGEDraw->updateExtraParams();
+        // 3) 从可视化效果对象中读取附件参数，并更新扩展数据
+        readExtraParamFromGEDraw( pGEDraw );
+    }
+}
+
+void MineGE::configDraw( const CString& drawName )
+{
+    // 1) 根据可视化效果的名称，向可视化效果系统(MineGEDrawSystem)请求可视化效果对象
+    MineGEDraw* pGEDraw = MineGEDrawSystem::GetInstance()->getGEDraw( getTypeName(), drawName );
+    // 2) 更新可视化效果参数
+    updateDrawParams( pGEDraw );
+}
+
+void MineGE::extractExistedDraw( AcStringArray& existedDraw )
+{
+    // 1) 使用ArxDbgXData模块中的ArxDbgAppXdata类操作扩展数据
+    ArxDbgAppXdata xdata( DRAW_PARAMS_XDATA_GROUP, acdbHostApplicationServices()->workingDatabase() );
+    xdata.getXdata( this );          // 提取扩展数据到xdata对象中
+
+    if( xdata.isEmpty() ) return;    // 没有数据
+
+    int len = 0;
+    xdata.getInteger( 1, len );      // 可视化效果个数
+    for( int i = 1; i <= len; i++ )
+    {
+        CString drawName;
+        xdata.getString( 2 * i, drawName ); // 可视化效果名称
+        existedDraw.append( drawName );  // 记录扩展数据中的可视化效果名称
+    }
+}
+
+// 这里的情况比较复杂
+// 必须要保证xdata里的draw与全局的draw是同步的
+// 可能存在如下几种情况：
+// 1、xdata里的draw 等于 全局的draw
+// 2、xdata里的draw 大于 全局的draw(增加了draw插件)
+// 3、xdata里的draw 小于 全局的draw(删除了draw插件)
+// 4、xata里的部分draw中在全局的draw中没有；全局的部分draw在xdata中没有
+// 目前采用最简单的办法，不论draw存在与否，全部都合并到xdata中
+// 也就是说xdata中可能存在冗余的、不再使用的draw数据
+// 后期可以考虑专门编写一个清理draw的程序
+void MineGE::initAllExtraParamsToXData()
+{
+    // 通过assertWriteEnabled限定只能在write状态下操作
+    assertWriteEnabled();
+
+    // 提取已存在的draw
+    AcStringArray existedDraw;
+    extractExistedDraw( existedDraw );
+
+    MineGEDrawSystem* pGEService = MineGEDrawSystem::GetInstance();
+    AcStringArray drawList;
+    pGEService->getAllGEDrawsByGEType( getTypeName(), drawList );
+
+    ArxDbgAppXdata xdata( DRAW_PARAMS_XDATA_GROUP, acdbHostApplicationServices()->workingDatabase() );
+    xdata.setString( 0, _T( "" ) );                           // 当前可视化效果名称
+    xdata.setInteger( 1, 0 );                                 // 可视化效果个数(临时赋给0)
+
+    bool foundNewDraw = false;                                // 是否发现新的draw
+    int i = existedDraw.length() + 1;
+    int len = drawList.length();
+    for( int j = 0; j < len; j++ )
+    {
+        if( existedDraw.contains( drawList.at( j ) ) ) continue;
+
+        foundNewDraw = true;                                   // 发现了新的draw
+
+        MineGEDraw* pGEDraw = pGEService->getGEDraw( getTypeName(), drawList.at( j ).kACharPtr() );
+        writeKeyParamToGEDraw( pGEDraw );                          // 写入关键参数到draw中
+        // 有些附加参数是需要根据关键参数来计算的
+        //pGEDraw->setAllExtraParamsToDefault();                   // 参数置为默认值
+        pGEDraw->updateExtraParams();                              // 计算附加参数
+        xdata.setString( 2 * i, pGEDraw->isA()->name() );          // 可视化效果名称
+
+        ArxDbgXdataList dataList;
+        DrawParamWriter writer( &dataList );
+        pGEDraw->writeExtraParam( writer );
+        xdata.setList( 2 * i + 1, dataList );                      // 写入附加参数
+        i++;
+    }
+    xdata.setInteger( 1, i - 1 );                                  // 修正draw的实际个数
+
+    if( foundNewDraw ) xdata.setXdata( this );                     // 只有发现新的draw才会更新xdata
+}
+
+/*
+ * 当图元的关键参数发生变化时，图元的附加参数也可能要随之变化
+ * 例如巷道的始末点坐标变化，则双线巷道的两侧轮廓点坐标也需要重新计算
+ * MineGE从派生类中读取关键参数，传递给可视化效果对象，由它计算附加参数
+ * 然后再从可视化效果对象中将更新后的附加参数读取到MineGE图元的扩展数据中
+ */
+void MineGE::updateDraw()
+{
+    assertWriteEnabled();
+
+    //m_pCurrentGEDraw = GetCurrentDrawPointer(getTypeName());
+    if( m_pCurrentGEDraw != 0 )
+    {
+        updateDrawParams( m_pCurrentGEDraw );
+    }
+}
+
+/*
+ * 初始化图元的可视化效果参数
+ * 执行2个初始化动作：
+ *		1) 获取当前可视化效果对象指针(m_pCurrentGEDraw)
+ *		2) 计算所有的可视化效果的附加参数并保存到扩展数据
+ */
+void MineGE::initNewObjectExtraParams()
+{
+    assertWriteEnabled();
+
+    // 1) 获取当前可视化效果对象指针(m_pCurrentGEDraw)
+    m_pCurrentGEDraw = GetCurrentDrawPointer( getTypeName() );
+
+    // 2) 计算所有的可视化效果的附加参数并保存到扩展数据
+    //     该图元必须尚未添加到数据库(也即尚未分配ID)
+    if( isNewObject() )
+    {
+        initAllExtraParamsToXData();
+    }
+}
+
+/* 获取当前可视化效果对象指针 */
+MineGEDraw* MineGE::getCurrentDraw() const
+{
+    return m_pCurrentGEDraw;
+}
+
+/*
+ * 从图元扩展数据中读取附加参数，传递给可视化效果对象
+ */
+void MineGE::writeExtraParamToGEDraw( MineGEDraw* pGEDraw ) const
+{
+    assertReadEnabled();
+
+    // 调用ArxDbgXData模块中的ArxDbgAppXdata类操作扩展数据
+    ArxDbgAppXdata xdata( DRAW_PARAMS_XDATA_GROUP, acdbHostApplicationServices()->workingDatabase() );
+    xdata.getXdata( ( MineGE* )this ); // 提取扩展数据到xdata对象中(强制去掉const属性)
+
+    int len = 0;
+    xdata.getInteger( 1, len );     // 可视化效果个数
+    for( int i = 1; i <= len; i++ )
+    {
+        CString drawName;
+        xdata.getString( 2 * i, drawName ); // 可视化效果名称
+
+        if( drawName.CompareNoCase( pGEDraw->isA()->name() ) == 0 )
+        {
+            ArxDbgXdataList dataList;
+            xdata.getList( 2 * i + 1, dataList ); // 可视化效果的参数
+
+            ArxDbgXdataListIterator paramList( dataList );
+            DrawParamReader reader( &paramList );
+            pGEDraw->readExtraParam( reader ); // 从扩展数据中读取参数
+        }
+    }
+}
+
+/*
+ * 从可视化效果对象中读取附加参数，并保存到图元的扩展数据中
+ */
+void MineGE::readExtraParamFromGEDraw( MineGEDraw* pGEDraw )
+{
+    assertWriteEnabled();
+
+    // 调用ArxDbgXData模块中的ArxDbgAppXdata类操作扩展数据
+    ArxDbgAppXdata xdata( DRAW_PARAMS_XDATA_GROUP, acdbHostApplicationServices()->workingDatabase() );
+    xdata.getXdata( this ); // 提取扩展数据到xdata对象中
+
+    // 进行替换的扩展数据
+    // 思路：将原有的扩展数据复制一份，对于修改的draw的数据先进行修改，然后再保存到新的扩展数据中
+    ArxDbgAppXdata xdata2( DRAW_PARAMS_XDATA_GROUP, acdbHostApplicationServices()->workingDatabase() );
+    xdata2.setString( 0, _T( "" ) ); // 当前可视化效果名称
+
+    int len = 0;
+    xdata.getInteger( 1, len );     // 可视化效果个数
+    xdata2.setInteger( 1, len );
+
+    for( int i = 1; i <= len; i++ )
+    {
+        CString drawName;
+        xdata.getString( 2 * i, drawName ); // 可视化效果名称
+        xdata2.setString( 2 * i, drawName );
+
+        if( drawName.CompareNoCase( pGEDraw->isA()->name() ) == 0 )
+        {
+            ArxDbgXdataList dataList;
+            DrawParamWriter writer( &dataList );
+            pGEDraw->writeExtraParam( writer );
+
+            xdata2.setList( 2 * i + 1, dataList ); // 修改并保存可视化效果的参数
+        }
+        else
+        {
+            ArxDbgXdataList dataList;
+            xdata.getList( 2 * i + 1, dataList );
+            xdata2.setList( 2 * i + 1, dataList );
+        }
+    }
+    xdata2.setXdata( this );
+}
+
+/*
+ * 从可视化效果对象中读取关键参数，并更新到图元的关键参数(关键参数由图元派生类定义)
+ */
+void MineGE::readKeyParamFromGEDraw( MineGEDraw* pGEDraw )
+{
+    assertWriteEnabled();
+
+    // 从可视化效果对象中读取关键参数
+    ArxDbgXdataList dataList;
+    DrawParamWriter writer( &dataList );
+    pGEDraw->writeKeyParam( writer );
+
+    // 调用虚函数更新图元派生类的关键参数
+    ArxDbgXdataListIterator dataListIter( dataList );
+    DrawParamReader reader( &dataListIter );
+    readKeyParam( reader );
+}
+
+/*
+ * 从图元扩展数据中读取关键参数，传递给可视化效果对象
+ */
+void MineGE::writeKeyParamToGEDraw( MineGEDraw* pGEDraw ) const
+{
+    assertReadEnabled();
+
+    // 从图元派生类中读取关键参数
+    // 将数据保存到扩展数据链表(ArxDbgXdataList)中
+    // 通过DrawParamWriter作为中转
+    ArxDbgXdataList dataList;
+    DrawParamWriter writer( &dataList );
+    writeKeyParam( writer );
+
+    // 将关键参数传递给可视化效果对象
+    // 通过DrawParamReader作为中转
+    ArxDbgXdataListIterator dataListIter( dataList );
+    DrawParamReader reader( &dataListIter );
+    pGEDraw->readKeyParam( reader );
+}
+
+/*
+ * 从图元关联的数据对象中读取属性数据，并传递给可视化效果对象
+ */
+void MineGE::writePropertyDataToGEDraw( MineGEDraw* pGEDraw ) const
+{
+    assertReadEnabled();
+
+    // 读取要查询的字段名称集合
+    AcStringArray names;
+    pGEDraw->regPropertyDataNames( names );
+    if( names.isEmpty() ) return;
+
+    // 查询数据，并写入到数据数组values中
+    AcStringArray values;
+    if( !GetPropertyDataFromDataObject( getDataObject(), names, values ) )
+    {
+        int len = names.length();
+        for( int i = 0; i < len; i++ )
+        {
+            // 如果获取数据失败，添加与names等长的空字符串
+            values.append( _T( "" ) );
+        }
+    }
+
+    // 将查询到的数据返回到可视化效果对象(pGEDraw)
+    pGEDraw->readPropertyDataFromGE( values );
+}
+
+/*
+ * 从图元中读取关键参数和附加参数
+ * 并更新可视化效果对象(pGEDraw)的关键参数和附加参数
+ */
+void MineGE::writeParamToGEDraw( MineGEDraw* pGEDraw ) const
+{
+    assertReadEnabled();
+
+    // 1、将关键参数更新到MineGEDraw中
+    writeKeyParamToGEDraw( pGEDraw );
+
+    // 2、从扩展数据中提取参数
+    writeExtraParamToGEDraw( pGEDraw );
+
+    // 3、读取属性数据，并传递给MineGEDraw
+    writePropertyDataToGEDraw( pGEDraw );
+}
+
+/*
+ * 从可视化效果对象(pGEDraw)中读取关键参数和附加参数
+ * 并更新图元的关键参数和附加参数
+ */
+void MineGE::readParamFromGEDraw( MineGEDraw* pGEDraw )
+{
+    assertWriteEnabled();
+
+    // 1、从MineGEDraw中读取更新后的关键参数
+    readKeyParamFromGEDraw( pGEDraw );
+
+    // 2、将draw的参数保存到扩展数据中
+    readExtraParamFromGEDraw( pGEDraw );
+}
+
+void MineGE::updateDrawParam( bool readOrWrite ) const
+{
+    if( readOrWrite )
+    {
+        ( ( MineGE* )this )->readParamFromGEDraw( m_pCurrentGEDraw ); // 强制去掉const修饰
+    }
+    else
+    {
+        writeParamToGEDraw( m_pCurrentGEDraw );
+    }
+}
+
+/* 将图元的数据写入DWG文件中 */
+Acad::ErrorStatus MineGE::dwgOutFields( AcDbDwgFiler* pFiler ) const
+{
+    assertReadEnabled () ;
+
+    //acutPrintf(_T("\nid:%d call MineGE::dwgOutFields()..."), objectId());
+
+    /* ARX向导生成的固定代码 */
+
+    // 调用基类的dwgOutFields()方法，写入一些DWG格式内部信息(仅是个人猜测)
+    // 基本原理应该类似于MFC的序列化过程(请参考 侯捷--《深入浅出MFC》)
+    Acad::ErrorStatus es = AcDbEntity::dwgOutFields ( pFiler ) ;
+    if ( es != Acad::eOk )
+        return ( es ) ;
+
+    // 写入类版本号
+    if ( ( es = pFiler->writeUInt32 ( MineGE::kCurrentVersionNumber ) ) != Acad::eOk )
+        return ( es ) ;
+
+    /* 手动添加代码 */
+
+    // 写入数据对象ID(软指针)
+    pFiler->writeSoftPointerId( m_dataObjectId );
+
+    return ( pFiler->filerStatus () ) ;
+}
+
+Acad::ErrorStatus MineGE::dwgInFields( AcDbDwgFiler* pFiler )
+{
+    assertWriteEnabled();
+
+    //acutPrintf(_T("\nid:%d call MineGE::dwgInFields()..."), objectId());
+
+    /* ARX向导生成的固定代码 */
+
+    // 调用基类的dwgInFields()方法，读取DWG格式文件的一些内部信息(仅是个人猜测)
+    // 基本原理应该类似于MFC的序列化过程(请参考 侯捷--《深入浅出MFC》)
+    Acad::ErrorStatus es = AcDbEntity::dwgInFields ( pFiler );
+    if ( es != Acad::eOk )
+        return ( es ) ;
+
+    /* ARX向导生成的固定代码 */
+
+    // 读取类版本号
+    Adesk::UInt32 version = 0 ;
+    if ( ( es = pFiler->readUInt32 ( &version ) ) != Acad::eOk )
+        return ( es ) ;
+    if ( version > MineGE::kCurrentVersionNumber )
+        return ( Acad::eMakeMeProxy ) ;
+
+    /* 手动添加代码 */
+
+    // 读取数据对象ID
+    AcDbSoftPointerId id;
+    pFiler->readSoftPointerId( &id );
+    m_dataObjectId = id;
+
+    /*
+     * 初始化图元的可视化效果参数
+     * 执行2个初始化动作：
+     *		1) 获取当前可视化效果对象指针(m_pCurrentGEDraw)
+     *		2) 计算所有的可视化效果的附加参数并保存到扩展数据
+     */
+    initDraw();
+
+    return ( pFiler->filerStatus () ) ;
+}
+
+/*
+ * 在绘制闭合图形时，AcGiFillType默认为kAcGiFillAlways(始终填充)
+ * 闭合图形包括：圆、多边形、网格等
+ * 参见：AcGiSubEntityTraits::fillType()方法说明
+ * 例如，绘制一个圆，当前颜色是黑底白色，那么采用自定义实体技术绘制的圆有2种情况:
+ *	    1) arx程序加载的情况下-- 白边+黑底填充(正常效果，和cad的圆是一样的)
+ *		2) arx程序卸载，cad采用代理实体模式显示图元 -- 白边+白底填充
+ * 具体参见：绘制填充圆的一些说明.doc
+ */
+
+// 慎用AcCmColor::colorIndex()方法，因为color index总共只有256种，且白/黑都使用7表示，无法区分
+// 如果要使用rgb颜色，应使用AcCmEntityColor或AcCmColor对象
+void MineGE::drawBackground( MineGEDraw* pGEDraw, AcGiWorldDraw* mode )
+{
+    if( isNewObject() ) return;
+
+    // 调用可视化效果对象的caclBackGroundMinPolygon()方法
+    // 得到绘制的背景多边形(近似的最小多边形)
+    AcGePoint3dArray pts;
+    m_pCurrentGEDraw->caclBackGroundMinPolygon( pts );
+
+    // 检查多边形是否有效
+    // 注：这里的检查方法比较原始，不够全面
+    //     只是判断多边形的顶点格式是否大于2
+    if( pts.length() < 3 ) return;
+
+    // 获取CAD绘图窗口背景色
+    Adesk::UInt8 r, g, b;
+    if( !GetBackgroundColor( r, g, b ) ) return;
+
+    // 绘制填充多边形
+    // 使用CAD窗口背景色填充多边形
+    AcGiSubEntityTraits& traits = mode->subEntityTraits();
+
+    // 保存原有的属性
+    Adesk::UInt16 cl = traits.color();;
+    AcGiFillType ft = traits.fillType();
+
+    AcCmEntityColor bgColor( r, g, b );
+    traits.setTrueColor( bgColor );
+    traits.setFillType( kAcGiFillAlways ); // 始终填充
+    //acutPrintf(_T("\n颜色索引：%d"), bgColor.colorIndex());
+    mode->geometry().polygon( pts.length(), pts.asArrayPtr() );
+
+    // 恢复原有属性
+    traits.setFillType( ft );
+    traits.setColor( cl );
+}
+
+Adesk::Boolean MineGE::subWorldDraw( AcGiWorldDraw* mode )
+{
+    assertReadEnabled () ;
+
+    if( m_pCurrentGEDraw == 0 ) return Adesk::kTrue;
+
+    //acutPrintf(_T("\ncall id:%d MineGE::subWorldDraw()..."), objectId());
+    //acutPrintf(_T("\ncall drawname:%s..."), m_pCurrentGEDraw->isA()->name());
+
+    // 1、更新参数到可视化效果对象
+    updateDrawParam( false );
+
+    // 2、绘制背景消隐块
+    drawBackground( m_pCurrentGEDraw, mode );
+
+    // 3、可视化效果对象负责绘制图形
+    m_pCurrentGEDraw->worldDraw( mode );
+
+    return Adesk::kTrue;
+}
+
+Acad::ErrorStatus MineGE::subTransformBy( const AcGeMatrix3d& xform )
+{
+    if( m_pCurrentGEDraw == 0 ) return Acad::eOk;
+
+    //acutPrintf(_T("\ncall id:%d MineGE::subTransformBy()..."), objectId());
+
+    // 1、更新参数到可视化效果对象中
+    updateDrawParam( false );
+
+    // 2、可视化效果对象执行变换
+    m_pCurrentGEDraw->transformBy( xform );
+
+    // 3、从可视化效果对象中读取更新后的参数
+    updateDrawParam( true );
+
+    return Acad::eOk;
+}
+
+Acad::ErrorStatus MineGE::subGetOsnapPoints (
+    AcDb::OsnapMode osnapMode,
+    int gsSelectionMark,
+    const AcGePoint3d& pickPoint,
+    const AcGePoint3d& lastPoint,
+    const AcGeMatrix3d& viewXform,
+    AcGePoint3dArray& snapPoints,
+    AcDbIntArray& geomIds ) const
+{
+    assertReadEnabled () ;
+
+    if( m_pCurrentGEDraw == 0 ) return Acad::eOk;
+
+    // 1、更新参数到可视化效果对象中
+    updateDrawParam( false );
+
+    // 2、从可视化效果对象中获取捕捉点
+    m_pCurrentGEDraw->getOsnapPoints( osnapMode, gsSelectionMark, pickPoint, lastPoint, viewXform, snapPoints, geomIds );
+
+    return Acad::eOk;
+}
+
+Acad::ErrorStatus MineGE::subGetGripPoints(
+    AcGePoint3dArray& gripPoints,
+    AcDbIntArray& osnapModes,
+    AcDbIntArray& geomIds ) const
+{
+    assertReadEnabled () ;
+
+    if( m_pCurrentGEDraw == 0 ) return Acad::eOk;
+
+    // 1、更新参数到可视化效果对象中
+    updateDrawParam( false );
+
+    // 2、从可视化效果对象中获取夹点
+    m_pCurrentGEDraw->getGripPoints( gripPoints, osnapModes, geomIds );
+
+    return Acad::eOk;
+}
+
+Acad::ErrorStatus MineGE::subMoveGripPointsAt ( const AcDbIntArray& indices, const AcGeVector3d& offset )
+{
+    assertWriteEnabled () ;
+
+    if( m_pCurrentGEDraw == 0 ) return Acad::eOk;
+
+    //acutPrintf(_T("\ncall id:%d MineGE::subMoveGripPointsAt()..."), objectId());
+
+    // 1、更新参数到可视化效果对象中
+    updateDrawParam( false );
+
+    // 2、可视化效果对象执行夹点编辑操作
+    m_pCurrentGEDraw->moveGripPointsAt( indices, offset );
+
+    // 3、从可视化效果对象中读取更新后的参数
+    updateDrawParam( true );
+
+    return Acad::eOk;
+}
+
+/*
+ * 根据可视化效果对象中定义的最小多边形(用于背景消隐块)
+ * 计算图元的几何区域(缩放图元时，用于计算缩放范围)
+ */
+Acad::ErrorStatus MineGE::subGetGeomExtents( AcDbExtents& extents ) const
+{
+    assertReadEnabled () ;
+
+    if( m_pCurrentGEDraw == 0 ) return AcDbEntity::subGetGeomExtents( extents );
+
+    // 1、更新参数到可视化效果对象中
+    updateDrawParam( false );
+
+    Acad::ErrorStatus es = m_pCurrentGEDraw->getGeomExtents( extents );
+
+    if( Acad::eOk != es )
+    {
+        // 可视化效果对象没有重载实现subGetGeomExtents
+        //acutPrintf(_T("\n使用背景消隐多边形计算缩放区域...\n"));
+        // 使用caclBackGroundMinPolygon()方法计算的多边形代替
+        AcGePoint3dArray pts;
+        m_pCurrentGEDraw->caclBackGroundMinPolygon( pts );
+        if( pts.isEmpty() )
+        {
+            es = Acad::eInvalidExtents;
+        }
+        else
+        {
+            int len = pts.length();
+            for( int i = 0; i < len; i++ )
+            {
+                extents.addPoint( pts[i] );
+            }
+            es = Acad::eOk;
+        }
+    }
+
+    return es;
+}
+
+// cad会频繁的调用subClose
+Acad::ErrorStatus MineGE::subClose( void )
+{
+    //acutPrintf(_T("\nid:%d call MineGE::subClose()...\n"), objectId());
+
+    // 调用基类的subClose()方法(可能有一些CAD内部的操作，仅个人猜测)
+    // 注：在ARX中重载实现基类定义的虚函数，最好的做法是首先调用基类的方法
+    Acad::ErrorStatus es = AcDbEntity::subClose () ;
+
+    // new出来的图元对象成功提交到数据库之后:
+    //		1) 初始化可视化效果参数(保存在扩展数据)
+    //		2) 初始化数据对象(保存在扩展词典)
+    if( es == Acad::eOk )
+    {
+        initDraw();
+        initPropertyData();
+    }
+
+    return es;
+}

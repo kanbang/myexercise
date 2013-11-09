@@ -1,0 +1,13 @@
+1、从AcDbObject(或AcDbEntity)派生时，不要在成员函数内使用事务(transaction)
+
+2、如果对单个实体进行一些操作，尽量也不要使用事务；
+     除非已经确定该实体已经打开了，且无法再次通过open/close机制来操作
+
+3、subClose会被调用很多次(开发人员无法控制)
+目前确定一个案例：
+在subClose中调用this->isA()->name()会导致stack overflow(栈溢出)
+猜测原因：
+可能是subClose调用过多或者是死循环递归???
+
+
+后续添加...

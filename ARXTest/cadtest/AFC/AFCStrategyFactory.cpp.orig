@@ -1,0 +1,140 @@
+#include "StdAfx.h"
+#include "AFCStrategyFactory.h"
+#include "AFCTableNames.h"
+
+#include "MC_AFCStrategy.h"
+#include "Gas_AFCStrategy.h"
+#include "TVE_AFCStrategy.h"
+#include "MaxPeopleNum_AFC_CheckStrategy.h"
+#include "MaxWeight_AFC_CheckStrategy.h"
+#include "AFC_VelocityCheckStrategy.h"
+#include "LocalFan_AFCStrategy.h"
+#include "UEM_AFCStrategy.h"
+#include "PCR_AFCStrategy.h"
+#include "MEC_AFCStrategy.h"
+#include "ConstMinQ_AFC_CheckStrategy.h"
+#include "OT_GasAFCStrategy.h"
+#include "RTC_AFCStrategy.h"
+#include "NullAFCStrategy.h"
+
+namespace PJ
+{
+	AFCStrategy* AFCStrategyFactory::createMC_AFCStrategy( double max_kdj, double min_kdj, double height, double reasonalVelocity, double k_height, double k_length, double k_temperature )
+	{
+		MC_AFCStrategy* pAFCStrategy = new MC_AFCStrategy(MC_AFC_TABLE_NAME);
+		pAFCStrategy->setKDJ(max_kdj, min_kdj);
+		pAFCStrategy->setHeight(height);
+		pAFCStrategy->setReasonalVelocity(reasonalVelocity);
+		pAFCStrategy->setAdjustCoefficient(k_height, k_length, k_temperature);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createGas_AFCStrategy( double q_ch4, double k_ch4, double q_ch4_tail )
+	{
+		Gas_AFCStrategy* pAFCStrategy = new Gas_AFCStrategy(GAS_AFC_TABLE_NAME);
+		pAFCStrategy->setQ_CH4(q_ch4);
+		pAFCStrategy->setK_CH4(k_ch4);
+		pAFCStrategy->setQ_CH4_TAIL(q_ch4_tail);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createTve_AFCStrategy( double reasonalVelocity, double area )
+	{
+		TVE_AFCStrategy* pAFCStrategy = new TVE_AFCStrategy(TVE_AFC_TABLE_NAME);
+		pAFCStrategy->setReasonalVelocity(reasonalVelocity);
+		pAFCStrategy->setArea(area);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createMaxPeopleNum_AFC_CheckStrategy( int maxPeopleNum )
+	{
+		MaxPeopleNum_AFC_CheckStrategy* pAFCStrategy = new MaxPeopleNum_AFC_CheckStrategy(MAX_PEOPLE_NUM_AFC_CHECK_TABLE_NAME);
+		pAFCStrategy->setMaxPeopleNum(maxPeopleNum);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createMaxWeight_AFC_CheckStrategy( double maxWeight )
+	{
+		MaxWeight_AFC_CheckStrategy* pAFCStrategy = new MaxWeight_AFC_CheckStrategy(MAX_WEIGHT_AFC_CHECK_TABLE_NAME);
+		pAFCStrategy->setMaxWeight(maxWeight);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createVE_AFC_CheckStrategy( double area, MIN_VELOCITY V_min, MAX_VELOCITY V_max, VelocityCheckType vct )
+	{
+		AFC_VelocityCheckStrategy* pAFCStrategy = new AFC_VelocityCheckStrategy(VE_AFC_CHECK_TABLE_NAME);
+		pAFCStrategy->setArea(area);
+		pAFCStrategy->setMinMaxVelocity(V_min, V_max);
+		pAFCStrategy->setVelocityCheckType(vct);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createLocalFan_AFCStrategy( double area, int fanNum, double q_fan, bool isRock )
+	{
+		LocalFan_AFCStrategy* pAFCStrategy = new LocalFan_AFCStrategy(LOCAL_FAN_AFC_TABLE_NAME);
+		pAFCStrategy->setArea(area);
+		pAFCStrategy->setFanNum(fanNum);
+		pAFCStrategy->setQ_FAN(q_fan);
+		pAFCStrategy->changeTunnelType(isRock);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createUEM_AFCStrategy( double V )
+	{
+		UEM_AFCStrategy* pAFCStrategy = new UEM_AFCStrategy(UEM_AFC_TABLE_NAME);
+		pAFCStrategy->setV(V);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createPCR_AFCStrategy( double q_h2 )
+	{
+		PCR_AFCStrategy* pAFCStrategy = new PCR_AFCStrategy(PCR_AFC_TABLE_NAME);
+		pAFCStrategy->setQ_H2(q_h2);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createLargeMEC_AFCStrategy( double power, double theta, double delta_t )
+	{
+		MEC_AFCStrategy* pAFCStrategy = new MEC_AFCStrategy(MEC_AFC_TABLE_NAME);
+		pAFCStrategy->setPower(power);
+		pAFCStrategy->setMECSize(true);
+		pAFCStrategy->setTheta(theta);
+		pAFCStrategy->setDeltaT(delta_t);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createSmallMEC_AFCStrategy( double power, double q_def )
+	{
+		MEC_AFCStrategy* pAFCStrategy = new MEC_AFCStrategy(MEC_AFC_TABLE_NAME);
+		pAFCStrategy->setPower(power);
+		pAFCStrategy->setMECSize(false);
+		pAFCStrategy->setDefQ(q_def);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createOT_Gas_AFCStrategy( double q_ch4_max, CoalMineGasInfo gasInfo, TunnelMaterial tm )
+	{
+		OT_GasAFCStrategy* pAFCStrategy = new OT_GasAFCStrategy(OT_GAS_AFC_TABLE_NAME);
+		pAFCStrategy->setQ_CH4_Max(q_ch4_max);
+		pAFCStrategy->setInfo(gasInfo, tm);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createRTC_AFCStrategy( int num, double power )
+	{
+		RTC_AFCStrategy* pAFCStrategy = new RTC_AFCStrategy(RTC_AFC_TABLE_NAME);
+		pAFCStrategy->setRTCNum(num);
+		pAFCStrategy->setRTCPower(power);
+		return pAFCStrategy;
+	}
+
+	AFCStrategy* AFCStrategyFactory::createNull_AFCStrategy( const CString& tableName )
+	{
+		return new NullAFCStrategy(tableName);
+	}
+
+	AFCStrategy* AFCStrategyFactory::createConstMinQ_AFC_CheckStrategy( )
+	{
+		return new ConstMinQ_AFC_CheckStrategy(CONST_MINQ_AFC_CHECK_TABLE_NAME);
+	}
+}

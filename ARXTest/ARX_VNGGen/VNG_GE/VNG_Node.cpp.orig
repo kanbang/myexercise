@@ -1,0 +1,145 @@
+#include "StdAfx.h"
+
+#include "VNG_Node.h"
+#include "DrawTool.h"
+
+Adesk::UInt32 VNG_Node::kCurrentVersionNumber =1 ;
+
+ACRX_DXF_DEFINE_MEMBERS (
+	VNG_Node, VNG_GE,
+	AcDb::kDHL_CURRENT, AcDb::kMReleaseCurrent, 
+	AcDbProxyEntity::kNoOperation,
+	节点, VNGGENAPP
+)
+
+VNG_Node::VNG_Node () : VNG_GE () {
+}
+
+VNG_Node::~VNG_Node () {
+}
+
+Acad::ErrorStatus VNG_Node::dwgOutFields (AcDbDwgFiler *pFiler) const {
+	assertReadEnabled () ;
+	//----- Save parent class information first.
+	Acad::ErrorStatus es =VNG_GE::dwgOutFields (pFiler) ;
+	if ( es != Acad::eOk )
+		return (es) ;
+	//----- Object version number needs to be saved first
+	if ( (es =pFiler->writeUInt32 (VNG_Node::kCurrentVersionNumber)) != Acad::eOk )
+		return (es) ;
+
+	// 保存节点数据
+	pFiler->writePoint3d(m_pt);
+	pFiler->writeDouble(m_width);
+	pFiler->writeDouble(m_height);
+	pFiler->writeDouble(m_textHeight);
+
+	return (pFiler->filerStatus ()) ;
+}
+
+Acad::ErrorStatus VNG_Node::dwgInFields (AcDbDwgFiler *pFiler) {
+	assertWriteEnabled () ;
+	//----- Read parent class information first.
+	Acad::ErrorStatus es =VNG_GE::dwgInFields (pFiler) ;
+	if ( es != Acad::eOk )
+		return (es) ;
+	//----- Object version number needs to be read first
+	Adesk::UInt32 version =0 ;
+	if ( (es =pFiler->readUInt32 (&version)) != Acad::eOk )
+		return (es) ;
+	if ( version > VNG_Node::kCurrentVersionNumber )
+		return (Acad::eMakeMeProxy) ;
+
+	// 读取节点数据
+	pFiler->readPoint3d(&m_pt);
+	pFiler->readDouble(&m_width);
+	pFiler->readDouble(&m_height);
+	pFiler->readDouble(&m_textHeight);
+
+	return (pFiler->filerStatus ()) ;
+}
+
+Adesk::Boolean VNG_Node::subWorldDraw (AcGiWorldDraw *mode)
+{
+	assertReadEnabled();
+
+	DrawEllipse(mode, m_pt, m_width, m_height, false);
+	
+	CString idStr;
+	idStr.Format(_T("%d"), m_id);
+
+	CString str;
+	str.Format(_T("V%s"), MakeLowerText(idStr));
+	DrawMText(mode, m_pt, 0, str, m_textHeight);
+	
+	return Adesk::kTrue;
+	//return (VNG_GE::subWorldDraw (mode));
+}
+
+Acad::ErrorStatus VNG_Node::subTransformBy( const AcGeMatrix3d & xform )
+{
+	m_pt.transformBy(xform);
+
+	AcGeVector3d v(AcGeVector3d::kXAxis);
+	v.transformBy(xform);
+
+	m_width = v.length()*m_width;
+	m_height = v.length()*m_height;
+	m_textHeight = v.length()*m_textHeight;
+
+	return Acad::eOk;
+}
+
+Acad::ErrorStatus VNG_Node::subGetOsnapPoints (
+	AcDb::OsnapMode osnapMode,
+	int gsSelectionMark,
+	const AcGePoint3d &pickPoint,
+	const AcGePoint3d &lastPoint,
+	const AcGeMatrix3d &viewXform,
+	AcGePoint3dArray &snapPoints,
+	AcDbIntArray &geomIds) const
+{
+	assertReadEnabled () ;
+
+	if(osnapMode == AcDb::kOsModeCen)
+	{
+		snapPoints.append(m_pt);
+	}
+		return Acad::eOk;
+}
+
+Acad::ErrorStatus VNG_Node::subGetGripPoints(
+	AcGePoint3dArray &gripPoints, 
+	AcDbIntArray &osnapModes, 
+	AcDbIntArray &geomIds) const 
+{
+	assertReadEnabled () ;
+
+	gripPoints.append(m_pt);
+
+	return Acad::eOk;
+}
+
+Acad::ErrorStatus VNG_Node::subMoveGripPointsAt (const AcDbIntArray &indices, const AcGeVector3d &offset) 
+{
+	assertWriteEnabled () ;
+
+	for(int i=0; i<indices.length(); i++)
+	{
+		int idx = indices.at(i);
+
+		if (idx==0)
+		{
+			m_pt += offset;
+		}
+	}
+	return Acad::eOk;
+}
+
+void VNG_Node::setParam( double m_nodeWidth, double m_nodeHeight, double m_nodeTextHeight )
+{
+	assertWriteEnabled () ;
+	this->m_width = m_nodeWidth;
+	this->m_height = m_nodeHeight;
+	this->m_textHeight = m_nodeTextHeight;
+}

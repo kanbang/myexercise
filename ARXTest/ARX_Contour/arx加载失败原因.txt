@@ -1,0 +1,3 @@
+加载不上的原因往往是因为需要依赖其它的库或者cad版本不对
+
+http://www.hongye.com.cn/forum/archive/index.php?t-43257.html

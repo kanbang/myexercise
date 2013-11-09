@@ -1,0 +1,52 @@
+// 添加标签测试
+	static void MineGECmds_AddLabelTest(void)
+	{
+		AcDbObjectId objId = ArxUtilHelper::SelectObject(_T("选择一条巷道:"));
+		if(objId.isNull()) return;
+
+		AcStringArray labels;
+		labels.append(_T("运输"));
+		labels.append(_T("-300水平"));
+		labels.append(_T("234采区"));
+
+		//LabelHelper::AddMoreLabels(objId, labels);
+
+		//LabelHelper::AddLabel(objId, _T("测试"));
+	}
+
+	static void MineGECmds_RemoveAllLabelsTest(void)
+	{
+		AcDbObjectId objId = ArxUtilHelper::SelectObject(_T("选择一条巷道:"));
+		if(objId.isNull()) return;
+
+		//LabelHelper::RemoveAllLabels(objId); // 删除所有标签
+	}
+
+	static void MineGECmds_RemoveLabelTest(void)
+	{
+		AcDbObjectId objId = ArxUtilHelper::SelectObject(_T("选择一条巷道:"));
+		if(objId.isNull()) return;
+
+		AcStringArray labels;
+		labels.append(_T("运输"));
+		labels.append(_T("运输xxx"));
+		//LabelHelper::RemoveMoreLabels(objId, labels);
+
+		//LabelHelper::RemoveLabel(objId, _T("测试"));
+	}
+
+	static void MineGECmds_PrintLabelTest(void)
+	{
+		AcDbObjectId objId = ArxUtilHelper::SelectObject(_T("选择一条巷道:"));
+		if(objId.isNull()) return;
+
+		AcStringArray labels;
+		//LabelHelper::GetAllLabels(objId, labels);
+		acutPrintf(_T("\n打印标签:\n"));
+		int len= labels.length();
+		for(int i=0;i<len;i++)
+		{
+			acutPrintf(_T("\t%s"), labels[i].kACharPtr());
+		}
+		acutPrintf(_T("\n"));
+	}

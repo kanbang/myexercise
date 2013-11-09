@@ -1,0 +1,419 @@
+#include "stdafx.h"
+#include "WindStationDockBarChildDlg.h"
+
+#include "../MineGE/HelperClass.h"
+#include "../ArxHelper/HelperClass.h"
+#include "../VentNetworkAlgo/VNAlgoHelper.h"
+
+/* 全局函数(实现在Tool.cpp中) */
+extern void FindUseAirPlaces(AcDbObjectIdArray& objIds, int& p1, int& p2, int& p3);
+
+IMPLEMENT_DYNAMIC(WindStationDockBarChildDlg, CAcUiDialog)
+
+WindStationDockBarChildDlg::WindStationDockBarChildDlg(CWnd *pParent, HINSTANCE hInstance)
+	: CAcUiDialog(WindStationDockBarChildDlg::IDD, pParent, hInstance),
+	m_hasStation(FALSE)
+	, m_name(_T(""))
+	, m_area(_T(""))
+	, m_v(_T(""))
+	, m_q(_T(""))
+{
+
+}
+
+WindStationDockBarChildDlg::~WindStationDockBarChildDlg()
+{
+	if(curDoc()!=0)
+	{
+		updateLastSelect();
+		clearAll();
+	}
+}
+
+void WindStationDockBarChildDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CAcUiDialog::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_WIND_STATION_LIST, m_list);
+	DDX_Check(pDX, IDC_WIND_STATION_CHECK1, m_hasStation);
+	DDX_Text(pDX, IDC_STATION_NAME, m_name);
+	DDX_Text(pDX, IDC_STATION_AREA, m_area);
+	DDX_Text(pDX, IDC_STATION_VELOCITY, m_v);
+	DDX_Text(pDX, IDC_STATION_Q, m_q);
+}
+
+
+BEGIN_MESSAGE_MAP(WindStationDockBarChildDlg, CAcUiDialog)
+	ON_MESSAGE(WM_ACAD_KEEPFOCUS, OnAcadKeepFocus)    // Needed for modeless dialog.
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_WIND_STATION_LIST, &WindStationDockBarChildDlg::OnLvnItemchangedAirList)
+	ON_BN_CLICKED(IDC_WIND_STATION_UPDATE_BTN, &WindStationDockBarChildDlg::OnBnClickedAirUpdateBtn)
+	ON_BN_CLICKED(IDC_WIND_STATION_SEL_BTN, &WindStationDockBarChildDlg::OnBnClickedAirSelBtn)
+	ON_BN_CLICKED(IDC_STATION_READ_BTN, &WindStationDockBarChildDlg::OnBnClickedStationReadBtn)
+	ON_BN_CLICKED(IDC_STATION_ZOOM_BTN, &WindStationDockBarChildDlg::OnBnClickedStationZoomBtn)
+END_MESSAGE_MAP()
+
+
+BOOL WindStationDockBarChildDlg::OnInitDialog()
+{
+	CAcUiDialog::OnInitDialog();
+
+	// 创建listctrl的标题头
+	m_list.SetExtendedStyle(m_list.GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	CRect rect;
+	m_list.GetClientRect(&rect);
+	double c = 0.3;
+	m_list.InsertColumn(0, _T("序号"), LVCFMT_LEFT, rect.Width()*c);
+	m_list.InsertColumn(1, _T("测风理由"), LVCFMT_LEFT, rect.Width()*(1-c));
+
+	// 清空
+	clearAll();
+
+	initTunnelList();
+
+	//MessageBox(_T("初始化完毕"));
+
+	return TRUE;  // return TRUE unless you set the focus to a control
+	// 异常: OCX 属性页应返回 FALSE
+}
+
+void WindStationDockBarChildDlg::readPropertyData( const AcDbObjectId& objId )
+{	
+	int pos = m_objIds.find(objId);
+	if(pos<0) return;
+
+	AcDbObjectIdArray stations;
+	DrawHelper::GetTagGEById2(m_hosts[pos], _T("WindStation"), stations);
+	if(stations.isEmpty())
+	{
+		m_hasStation = FALSE;
+	}
+	else
+	{
+		m_hasStation = TRUE;
+
+		DataHelper::GetPropertyData(stations[0], _T("名称"), m_name);
+		DataHelper::GetPropertyData(stations[0], _T("测试断面面积"), m_area);
+		DataHelper::GetPropertyData(stations[0], _T("测试风速"), m_v);
+		DataHelper::GetPropertyData(stations[0], _T("测试风量"), m_q);
+	}
+	UpdateData(FALSE);
+}
+
+void WindStationDockBarChildDlg::writePropertyData( const AcDbObjectId& objId )
+{
+	UpdateData(TRUE);
+
+	int pos = m_objIds.find(objId);
+	if(pos<0) return;
+
+	AcDbObjectIdArray stations;
+	DrawHelper::GetTagGEById2(m_hosts[pos], _T("WindStation"), stations);
+	if(stations.isEmpty()) return;
+
+	if(m_hasStation)
+	{
+		CString v1;
+		v1.Format(_T("%d"), 1); // 默认都是按照规定测风
+		DataHelper::SetPropertyData(stations[0], _T("是否按规定测风"), v1);
+
+		DataHelper::SetPropertyData(stations[0], _T("名称"), m_name);
+		DataHelper::SetPropertyData(stations[0], _T("测试断面面积"), m_area);
+		DataHelper::SetPropertyData(stations[0], _T("测试风速"), m_v);
+		DataHelper::SetPropertyData(stations[0], _T("测试风量"), m_q);
+	}
+}
+
+static void FindUseAirPlacesAndReasons(AcDbObjectIdArray& objIds, AcStringArray& reasons)
+{
+	int p1, p2, p3;
+	FindUseAirPlaces(objIds, p1, p2, p3);
+	for(int i=0;i<p1;i++)
+	{
+		reasons.append(_T("回采工作面"));
+	}
+	for(int i=p1;i<p2;i++)
+	{
+		reasons.append(_T("掘进工作面"));
+	}
+	for(int i=p2;i<p3;i++)
+	{
+		reasons.append(_T("硐室"));
+	}
+	int len = objIds.length();
+	for(int i=p3;i<len;i++)
+	{
+		reasons.append(_T("主要进回、采区进回大巷或用风巷道"));
+	}
+}
+
+static void FindWindStationHosts(const AcDbObjectIdArray& objIds, AcDbObjectIdArray& hosts)
+{
+	FWSHelper fws;
+	int len = objIds.length();
+	for(int i=0;i<len;i++)
+	{
+		hosts.append(fws.doFWS(objIds[i]));
+	}
+}
+
+void WindStationDockBarChildDlg::initTunnelList()
+{
+	// 锁定当前文档
+	acDocManager->lockDocument(curDoc());
+
+	// 查找用风地点以及缘由
+	FindUseAirPlacesAndReasons(m_objIds, m_reasons);
+	// 查找用风地点的测风站所在的宿主巷道
+	FindWindStationHosts(m_objIds, m_hosts);
+
+	// 记录颜色
+	ArxEntityHelper::GetEntitiesColor(m_objIds, m_colors);
+
+	// 解锁当前文档
+	acDocManager->unlockDocument(curDoc());
+
+	//assert(m_objIds.length() == m_reasons.length());
+	int len = m_objIds.length();
+	for (int i = 0; i < len; i++)
+	{
+		// 序号
+		CString num;
+		num.Format(_T("%d"), i+1);
+		m_list.InsertItem(i, num);
+		//m_list.SetItemData(i, i);
+		
+		m_list.SetItemText(i, 0, num);
+		m_list.SetItemText(i, 1, m_reasons[i].kACharPtr());
+	}
+
+	// 选中第1个
+	if(len>0)
+	{
+		m_list.SetItemState(0, LVIS_SELECTED, LVIS_SELECTED);
+		m_listFinishInitial = true;
+	}
+}
+
+//- Needed for modeless dialogs to keep focus.
+//- Return FALSE to not keep the focus, return TRUE to keep the focus
+LRESULT WindStationDockBarChildDlg::OnAcadKeepFocus (WPARAM wParam, LPARAM lParam) {
+	return (TRUE) ;
+}
+
+//- As this dialog is a child dialog we need to disable ok and cancel
+BOOL WindStationDockBarChildDlg::OnCommand (WPARAM wParam, LPARAM lParam) {
+	switch ( wParam ) {
+		case IDOK:
+		case IDCANCEL:
+			return (FALSE);
+	}	
+	return (CAcUiDialog::OnCommand (wParam, lParam)) ;
+}
+
+void WindStationDockBarChildDlg::OnSize (UINT nType, int cx, int cy) {
+	CAcUiDialog::OnSize (nType, cx, cy) ;
+	//- Now update the dialog
+	MoveWindow(0, 0, cx, cy);
+}
+
+void WindStationDockBarChildDlg::clearAllData()
+{
+	m_hasStation = FALSE;
+
+	m_name = _T("");
+	m_area = _T("");
+	m_v = _T("");
+	m_q = _T("");	
+}
+
+void WindStationDockBarChildDlg::clearAll()
+{
+	// 锁定当前文档
+	acDocManager->lockDocument(curDoc());
+	// 恢复颜色
+	ArxEntityHelper::SetEntitiesColor2(m_objIds, m_colors);
+
+	acDocManager->unlockDocument(curDoc());
+
+	m_list.DeleteAllItems();
+	m_objIds.removeAll();
+	m_colors.removeAll();
+	m_lastPos = -1;
+	m_listFinishInitial = false;
+	m_reasons.removeAll();
+	m_hosts.removeAll();
+	
+	clearAllData();
+}
+
+void WindStationDockBarChildDlg::OnBnClickedAirUpdateBtn()
+{
+	// 更新最后选择的一行
+	updateLastSelect();
+
+	// 清空
+	clearAll();
+
+	// 初始化list
+	initTunnelList();
+}
+
+void WindStationDockBarChildDlg::OnClosing()
+{
+	// 更新最后选择的一行
+	updateLastSelect();
+
+	// 清空
+	clearAll();
+}
+
+void WindStationDockBarChildDlg::OnLvnItemchangedAirList(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	if(!m_listFinishInitial) return;
+
+	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+	
+	if(pNMLV->iItem != -1)
+	{
+		// 锁定当前文档
+		acDocManager->lockDocument(curDoc()); 
+
+		// 第几个图元
+		int row = pNMLV->iItem;
+
+		if(m_lastPos != -1)
+		{
+			// 保存数据
+			writePropertyData(m_objIds[m_lastPos]);
+
+			// 恢复上一次选择图元的颜色
+			ArxEntityHelper::SetEntityColor(m_objIds[m_lastPos], m_colors[m_lastPos]);
+		}
+
+		clearAllData();
+		// 读取数据
+		readPropertyData(m_objIds[row]);
+
+		// 缩放并用黄颜色高亮显示
+		ArxEntityHelper::ZoomToEntity(m_objIds[row]);
+		ArxEntityHelper::SetEntityColor(m_objIds[row], 2);
+
+		m_lastPos = row;
+
+		acDocManager->unlockDocument(curDoc());
+	}
+
+	*pResult = 0;
+}
+
+void WindStationDockBarChildDlg::updateLastSelect()
+{
+	int row = LB_ERR;
+	for(int i = 0; i < m_list.GetItemCount(); i++)
+	{
+		if(LVIS_SELECTED == m_list.GetItemState(i, LVIS_SELECTED))
+		{
+			row = i; 
+			break;
+		}
+	}
+
+	if(row != LB_ERR)
+	{
+		//UpdateData(TRUE);
+
+		// 锁定当前文档
+		acDocManager->lockDocument(curDoc()); 
+		// 保存数据
+		writePropertyData(m_objIds[row]);
+
+		acDocManager->unlockDocument(curDoc());
+	}
+}
+
+void WindStationDockBarChildDlg::OnBnClickedAirSelBtn()
+{
+	// 拾取按钮
+	//BeginEditorCommand();
+	AcDbObjectId objId = ArxUtilHelper::SelectObject(_T("请选择一条巷道: "));
+	//CompleteEditorCommand();
+	if(!objId.isNull())
+	{
+		//MessageBox(_T("拾取成功"));
+		int pos = m_objIds.find(objId);
+		if(pos != -1)
+		{
+			//滚动条自动滚动该行,并选中
+			m_list.EnsureVisible(pos, FALSE);
+			m_list.SetItemState(pos, LVIS_SELECTED, LVIS_SELECTED);
+
+			// 取消选中
+			//m_list.SetItemState(pos, NULL, NULL);
+		}
+	}
+	else
+	{
+		MessageBox(_T("拾取失败"));
+	}
+}
+
+void WindStationDockBarChildDlg::OnBnClickedStationReadBtn()
+{
+	int row = LB_ERR;
+	for(int i = 0; i < m_list.GetItemCount(); i++)
+	{
+		if(LVIS_SELECTED == m_list.GetItemState(i, LVIS_SELECTED))
+		{
+			row = i; 
+			break;
+		}
+	}
+	if(row == LB_ERR) return;
+
+	if(!m_hasStation)
+	{
+		CString msg;
+		msg.Format(_T("请先设置测风站!!!\n【提示】\n点击工具栏的【测风站】按钮绘制测风站"));
+		MessageBox(msg);
+		return;
+	}
+
+	// 读取测风站所在巷道的【断面面积】、【风速】、【风量】数据
+	AcDbObjectId objId = m_objIds[row];
+
+	// 锁定当前文档
+	acDocManager->lockDocument(curDoc()); 
+
+	//DataHelper::GetPropertyData(objId, _T("名称"), m_name);
+	DataHelper::GetPropertyData(objId, _T("断面面积"), m_area);
+	DataHelper::GetPropertyData(objId, _T("风速"), m_v);
+	DataHelper::GetPropertyData(objId, _T("风量"), m_q);
+
+	acDocManager->unlockDocument(curDoc());
+
+	UpdateData(FALSE);
+}
+
+void WindStationDockBarChildDlg::OnBnClickedStationZoomBtn()
+{
+	UpdateData(TRUE);
+
+	int row = LB_ERR;
+	for(int i = 0; i < m_list.GetItemCount(); i++)
+	{
+		if(LVIS_SELECTED == m_list.GetItemState(i, LVIS_SELECTED))
+		{
+			row = i; 
+			break;
+		}
+	}
+	if(row == LB_ERR) return;
+
+	if(!m_hasStation)
+	{
+		MessageBox(_T("该地点没有设置测风站!!!"));
+	}
+	else
+	{
+		ArxEntityHelper::ZoomToEntity(m_hosts[row]);
+	}
+}

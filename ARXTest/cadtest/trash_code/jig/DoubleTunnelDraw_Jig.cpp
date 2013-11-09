@@ -1,0 +1,61 @@
+#include "StdAfx.h"
+#include "DoubleTunnelDraw_Jig.h"
+
+DoubleTunnelDraw_Jig::DoubleTunnelDraw_Jig( const CString& geType, const CString& drawName )
+    : MineGEDraw_Jig( geType, drawName )
+{
+}
+
+Adesk::Boolean DoubleTunnelDraw_Jig::doJig( MineGEDraw* pMineGEDraw )
+{
+    // 转换成特定效果的draw指针对象
+    m_pDraw = DoubleTunnelDraw::cast( pMineGEDraw );
+
+    setUserInputControls( ( UserInputControls )( kAcceptMouseUpAsPoint | kDontUpdateLastPoint ) );
+
+    setDispPrompt( _T( "\n请选择巷道起点坐标: " ) );
+    AcGePoint3d pt;
+    DragStatus stat = acquirePoint( pt );
+    if ( stat != kNormal ) return Adesk::kFalse;
+
+    m_pDraw->m_startPt = pt;
+
+    setDispPrompt( _T( "\n请选择巷道末点坐标: " ) );
+    stat = drag();
+
+    return ( stat == kNormal );
+}
+
+AcEdJig::DragStatus DoubleTunnelDraw_Jig::getEndPoint()
+{
+    AcGePoint3d pt;
+    AcEdJig::DragStatus stat = acquirePoint( pt, m_pDraw->m_startPt );
+    if( stat != kNormal ) return stat;
+
+    if( pt == m_pDraw->m_startPt )
+    {
+        stat = kNoChange;
+    }
+    else
+    {
+        m_pDraw->m_endPt = pt;
+    }
+    return stat;
+}
+
+AcEdJig::DragStatus DoubleTunnelDraw_Jig::sampler()
+{
+    return getEndPoint();
+}
+
+Adesk::Boolean DoubleTunnelDraw_Jig::update()
+{
+    m_pDraw->update(); // 更新参数
+
+    return Adesk::kTrue;
+}
+
+AcDbEntity* DoubleTunnelDraw_Jig::entity() const
+{
+    return m_pDraw;
+}

@@ -1,0 +1,35 @@
+#include "stdafx.h"
+#include "DoubleClickCallBack.h"
+#include "ArxUtilHelper.h"
+
+// 默认回调函数
+void MineGE_DoNothingDoubleClick(const AcDbObjectId& objId)
+{
+	// do nothing
+}
+
+/* 全局的双击回调函数 */
+DoubleClickFunc global_mine_ge_dcf = &MineGE_DoNothingDoubleClick;
+
+void RegDoubleClickFunc( DoubleClickFunc dcf )
+{
+	if(dcf == 0)
+	{
+		global_mine_ge_dcf = &MineGE_DoNothingDoubleClick;
+	}
+	else
+	{
+		global_mine_ge_dcf = dcf;
+	}
+}
+
+/* 全局函数(调用双击回调函数) */
+void CallDoubleClickFunc()
+{
+	//acutPrintf(_T("\n双击自定义..."));
+	AcDbObjectIdArray objIds;
+	ArxUtilHelper::GetPickSetEntity(objIds);
+	if(objIds.length() != 1) return;
+
+	global_mine_ge_dcf(objIds[0]);
+}

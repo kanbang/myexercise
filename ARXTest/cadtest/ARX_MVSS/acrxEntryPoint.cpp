@@ -1,0 +1,78 @@
+#include "StdAfx.h"
+#include "resource.h"
+
+#include "MVSSVentNetworkCalc.h"
+
+// 定义注册服务名称
+#ifndef ARX_MVSS_SERVICE_NAME
+#define ARX_MVSS_SERVICE_NAME _T("ARX_MVSS_SERVICE_NAME")
+#endif
+
+class CARX_MVSSApp : public AcRxArxApp
+{
+
+public:
+    CARX_MVSSApp () : AcRxArxApp () {}
+
+    virtual AcRx::AppRetCode On_kInitAppMsg ( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxArxApp::On_kInitAppMsg ( pkt ) ;
+
+        // 注册服务
+        acrxRegisterService( ARX_MVSS_SERVICE_NAME );
+
+        acutPrintf( _T( "\nARX_MVSS::On_kInitAppMsg\n" ) );
+
+        return ( retCode ) ;
+    }
+
+    virtual AcRx::AppRetCode On_kUnloadAppMsg ( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxArxApp::On_kUnloadAppMsg ( pkt ) ;
+
+        // 删除服务
+        delete acrxServiceDictionary->remove( ARX_MVSS_SERVICE_NAME );
+
+        acutPrintf( _T( "\nARX_MVSS::On_kUnloadAppMsg\n" ) );
+
+        return ( retCode ) ;
+    }
+
+    virtual AcRx::AppRetCode On_kLoadDwgMsg( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxDbxApp::On_kLoadDwgMsg ( pkt );
+
+        acutPrintf( _T( "\nARX_MVSS::On_kLoadDwgMsg\n" ) );
+
+        return retCode;
+    }
+
+    virtual AcRx::AppRetCode On_kUnloadDwgMsg( void* pkt )
+    {
+        AcRx::AppRetCode retCode = AcRxDbxApp::On_kUnloadDwgMsg( pkt ) ;
+
+        acutPrintf( _T( "\nARX_MVSS::On_kUnloadDwgMsg\n" ) );
+
+        return retCode;
+    }
+
+    virtual void RegisterServerComponents ()
+    {
+    }
+
+    static void JL_MVSSVNC( void )
+    {
+        MVSSVentNetworkCalc vnc;
+        if( !vnc.doVNC() )
+        {
+            acutPrintf( _T( "\n初始化失败" ) );
+        }
+        else
+        {
+            acutPrintf( _T( "\n写入到数据库" ) );
+        }
+    }
+} ;
+
+IMPLEMENT_ARX_ENTRYPOINT( CARX_MVSSApp )
+ACED_ARXCOMMAND_ENTRY_AUTO( CARX_MVSSApp, JL, _MVSSVNC, MVSSVNC, ACRX_CMD_TRANSPARENT, NULL )

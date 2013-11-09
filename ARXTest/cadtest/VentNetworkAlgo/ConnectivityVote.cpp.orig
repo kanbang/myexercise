@@ -1,0 +1,255 @@
+#include "StdAfx.h"
+#include "ConnectivityVote.h"
+
+#include <lemon/adaptors.h>
+#include <lemon/connectivity.h>
+
+typedef Digraph::NodeMap<int> CompMap;
+
+static void ClearGraph(Digraph& dg, CNN_EdgeDataMap& datas)
+{
+	dg.clear();       // 删除图
+}
+
+static void InitEdgeDatas(Digraph& dg, ObjectIdMap& obj_map, CNN_EdgeDataMap& datas)
+{
+	// 关联分支属性
+	for(Digraph::ArcIt e(dg); e!=INVALID; ++e)
+	{
+		datas[e] = obj_map[e];
+	}	
+}
+
+ConnectivityVote::ConnectivityVote(void) : datas(dg), ef(dg, true), bInitNetwokState(true)
+{
+	// 初始化网络以及添加处理源汇
+	if(!initNetwok())
+	{
+		acutPrintf(_T("\n初始化网络失败"));
+		ClearGraph(dg, datas);
+		setInitNetwokState(false);
+	}
+}
+
+ConnectivityVote::~ConnectivityVote(void)
+{
+	if(bInitNetwokState)
+	{
+		ClearGraph(dg, datas);
+	}
+}
+
+bool ConnectivityVote::initNetwok()
+{
+	// 构建网络
+	ObjectIdMap om(dg);
+	if(!BuildNetwork(dg, om)) return false;
+	if(!AddVirtualSTNode(dg, om, sn, tn)) return false;
+	FilterBlockEdges(dg, om, ef);
+
+	// 给分支添加属性，连接到图元
+	InitEdgeDatas(dg, om, datas);
+
+	return true;
+}
+
+bool ConnectivityVote::isInitNetworkOk() const
+{
+	return bInitNetwokState;
+}
+
+void ConnectivityVote::setInitNetwokState( bool bState )
+{
+	bInitNetwokState = bState;
+}
+
+bool ConnectivityVote::connected()
+{
+	if(!isInitNetworkOk()) return false;
+
+	typedef Undirector<Digraph> Graph;
+	Graph g(dg);
+
+	return lemon::connected(g);
+}
+
+bool ConnectivityVote::dag()
+{
+	if(!isInitNetworkOk()) return false;
+
+	return lemon::dag(dg);
+}
+
+// 连通分支visitor(用于无向图)
+class CNNEdgeVisitor : public DfsVisitor<Digraph>
+{
+public:
+	CNNEdgeVisitor(EdgeArray& es_) : es(es_) {}
+	void discover(const Digraph::Arc &e)
+	{
+		addCNNEdge(e);
+	}
+	void examine(const Digraph::Arc &e)
+	{
+		addCNNEdge(e);
+	}
+
+private:
+	void addCNNEdge(const Digraph::Arc &e)
+	{
+		es.append(e);
+	}
+
+	EdgeArray& es;
+};
+
+static void FindEdgeByCCId(Digraph& dg, CompMap& compMap, int cc, EdgeArray& es)
+{
+	//查找第cc个连通块
+	typedef Digraph::NodeMap<bool> NodeFilter;
+	NodeFilter nf(dg, false);    // 用于过滤连通标识不等于cc的节点
+
+	int count = 0;
+	for(Digraph::NodeIt n(dg); n!=INVALID; ++n)
+	{
+		if(compMap[n] == cc)
+		{
+			count++; nf[n] = true;
+		}
+	}
+	if(count < 2) return; // 忽略单独一个节点是(强)连通分量的情况
+
+	// 对有向图进行过滤, 过滤掉所有连通块标识不为cc的节点
+	typedef FilterNodes<Digraph, NodeFilter> NFGraph;
+	NFGraph nfg(dg, nf);
+
+	// 执行一次dfs
+	// 记录连通标识为cc的节点之间的分支集合(有向图分支)
+	CNNEdgeVisitor visitor(es);
+	DfsVisit<NFGraph, CNNEdgeVisitor> dv(nfg, visitor);
+	dv.run();
+}
+
+bool ConnectivityVote::CC( AcDbObjectIdArray& objIds, AcDbIntArray& ccIds )
+{
+	if(!isInitNetworkOk()) return false;
+
+	//typedef Digraph::NodeMap<int> CompMap;
+	CompMap compMap(dg);
+
+	// 转换成无向图
+	typedef Undirector<Digraph> UGraph;
+	UGraph ug(dg);
+
+	// 返回连通块个数
+	int c = lemon::connectedComponents(ug, compMap);
+	//acutPrintf(_T("\n连通块个数:%d"), c);
+	//if(c == 0) return true; // 网络为空
+
+	for(int i=0;i<c;i++)
+	{
+		EdgeArray es;
+		FindEdgeByCCId(dg, compMap, i, es);
+		if(es.isEmpty()) continue;
+
+		int len = es.length();
+		for(int j=0;j<len;j++)
+		{
+			Digraph::Arc e = es[j];
+			objIds.append(datas[e]);
+		}
+		ccIds.append(len);
+	}
+
+	return true;
+}
+
+bool ConnectivityVote::SCC( AcDbObjectIdArray& objIds, AcDbIntArray& sccIds )
+{
+	if(!isInitNetworkOk()) return false;
+
+	// 过滤阻断分支后的图
+	typedef FilterArcs<Digraph, ArcFilter> AFGraph;
+	//AFGraph afg(dg, ef);
+
+	// 节点属于哪个连通分量
+	CompMap compMap(dg);
+	
+	// 返回单向回路个数
+	// 目前的实现中将阻断分支也作为回路的一部分
+	//int c = lemon::stronglyConnectedComponents(afg, compMap);
+	int c = lemon::stronglyConnectedComponents(dg, compMap);
+	//acutPrintf(_T("\n强连通分量个数:%d"), c);
+
+	for(int i=0;i<c;i++)
+	{
+		EdgeArray es;
+		FindEdgeByCCId(dg, compMap, i, es);
+		if(es.isEmpty()) continue;
+
+		int len = es.length();
+		for(int j=0;j<len;j++)
+		{
+			Digraph::Arc e = es[j];
+			objIds.append(datas[e]);
+		}
+		sccIds.append(len);
+	}
+
+	return true;
+}
+
+// 查找源点的出边分支
+// 注：网络已处理成单源单汇，因此查找源汇分支的实现应修改为
+//      查找源点的出边分支的末节点的所有出边分支
+void ConnectivityVote::FIE( AcDbObjectIdArray& objIds )
+{
+	if(!isInitNetworkOk()) return /*false*/;
+
+	NodeArray sNodes;  // 源点集合
+	for(Digraph::OutArcIt e(dg, sn); e!=INVALID; ++e)
+	{
+		sNodes.append(dg.target(e));
+	}
+
+	int len = sNodes.length();
+	for(int i=0;i<len;i++)
+	{
+		// 查找源点的出边分支
+		Digraph::Node u = sNodes[i];
+		for(Digraph::OutArcIt e(dg, u); e!=INVALID; ++e)
+		{
+			AcDbObjectId objId = datas[e];
+			if(!objId.isNull() && !objIds.contains(objId)) 
+			{
+				objIds.append(objId);
+			}
+		}
+	}
+}
+
+void ConnectivityVote::FOE( AcDbObjectIdArray& objIds )
+{
+	if(!isInitNetworkOk()) return /*false*/;
+
+	NodeArray tNodes;  // 汇点集合
+	for(Digraph::InArcIt e(dg, tn); e!=INVALID; ++e)
+	{
+		tNodes.append(dg.source(e));
+	}
+
+	int len = tNodes.length();
+	for(int i=0;i<len;i++)
+	{
+		// 查找汇点的入边分支
+		Digraph::Node u = tNodes[i];
+		for(Digraph::InArcIt e(dg, u); e!=INVALID; ++e)
+		{
+			AcDbObjectId objId = datas[e];
+			if(!objId.isNull() && !objIds.contains(objId)) 
+			{
+				objIds.append(objId);
+			}
+		}
+	}
+}

@@ -1,0 +1,61 @@
+#include "StdAfx.h"
+#include "SelectedGE_EditorReactor.h"
+
+SelectedGE_EditorReactor::SelectedGE_EditorReactor ( const bool autoInitAndRelease ) : AcEditorReactor(), mbAutoInitAndRelease( autoInitAndRelease )
+{
+    if ( autoInitAndRelease )
+    {
+        if ( acedEditor )
+            acedEditor->addReactor ( this ) ;
+        else
+            mbAutoInitAndRelease = false ;
+    }
+}
+
+SelectedGE_EditorReactor::~SelectedGE_EditorReactor ()
+{
+    Detach () ;
+}
+
+void SelectedGE_EditorReactor::Attach ()
+{
+    Detach () ;
+    if ( !mbAutoInitAndRelease )
+    {
+        if ( acedEditor )
+        {
+            acedEditor->addReactor ( this ) ;
+            mbAutoInitAndRelease = true ;
+        }
+    }
+}
+
+void SelectedGE_EditorReactor::Detach ()
+{
+    if ( mbAutoInitAndRelease )
+    {
+        if ( acedEditor )
+        {
+            acedEditor->removeReactor ( this ) ;
+            mbAutoInitAndRelease = false ;
+        }
+    }
+}
+
+AcEditor* SelectedGE_EditorReactor::Subject () const
+{
+    return ( acedEditor ) ;
+}
+
+bool SelectedGE_EditorReactor::IsAttached () const
+{
+    return ( mbAutoInitAndRelease ) ;
+}
+
+void SelectedGE_EditorReactor::pickfirstModified( void )
+{
+    acutPrintf( _T( "\npickfirstModified()...\n" ) );
+    AcEditorReactor::pickfirstModified();
+
+    //acutPrintf(_T("\n%Ñ¡ÔñÍ¼Ôª:%d"), objIds.length());
+}

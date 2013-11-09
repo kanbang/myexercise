@@ -1,0 +1,80 @@
+function isConnectedGraph = checkGraphConnection_BySearch(E)
+% 判断图是否连通，采用搜索的方法
+% 参见文献:《流体网络》第4章--4.1小节:49-51
+% 输入参数：
+%   E -- 分支集合
+% 输出参数：
+%   isConnectedGraph -- 是否连通
+
+% 连通块初始化
+CC = {};
+CC{1}=[1];  % 将第1条分支加入到第1个连通块中
+for e = 2:size(E,1)
+    if E(e,1) == -1
+        continue;
+    end
+    
+    disp(sprintf('第%d条分支', e))
+    u = E(e, 2);
+    v = E(e, 3);
+    i = findNodeInCC(E, CC, u);
+    j = findNodeInCC(E, CC, v);
+    
+    disp(sprintf('节点%d位于第%d个连通块',u, i));
+    disp(sprintf('节点%d位于第%d个连通块',v, j));
+%     disp('合并之前:')
+%     celldisp(CC)
+    if i == -1 & j == -1           % 不属于任何连通块
+        disp(sprintf('新建连通块，包含分支%d', e));
+        CC{end+1} = [e];           % 新建连通块
+    elseif i == -1 & j ~= -1       % u不属于任何一个连通块; v属于第j个连通块
+        disp(sprintf('合并分支%d到连通块%d', e, j));
+        CC{j} = [CC{j} e];
+    elseif i ~= -1 & j == -1       % u属于第i个连通块，不属于任何一个连通块
+        disp(sprintf('合并分支%d到连通块%d', e, i));
+%         disp([CC{i} e])
+        CC{i} = [CC{i} e];
+    elseif i == j                  % u和v都属于第i个连通块
+        disp(sprintf('分支%d在一个连通块%d中', e, i));
+        CC{i} = [CC{i} e];
+    else                           % u属于第i个连通块，v属于第j个连通块
+        disp('合并2个连通块')
+        CC{i} = [CC{i} CC{j}];
+        CC(j)=[]; % 删除第j个连通块
+    end
+%     disp('合并之后:')
+%     celldisp(CC)
+end
+
+% 判断连通块的个数，如果是连通图，那么最终的连通块的块数应该是1个
+disp(length(CC))
+% disp(size(CC))
+% celldisp(CC)
+for i=1:length(CC)
+    disp(sprintf('连通块%d：%s\n', i, mat2str(E(CC{i},1))));
+end
+isConnectedGraph = (length(CC)==1);
+
+
+    function nodes = edgesToNodes(E, edges)
+        % 将分支集合转换成节点集合
+        nodes = [];
+        for ee = edges
+            nodes = union(nodes, E(ee, 2:3));
+        end
+    end
+
+    function index = findNodeInCC(E, CC, u)
+        % 查找节点u位于哪个连通块中
+        index = -1;
+        for ii=1:size(CC,1)
+            nodes = edgesToNodes(E, CC{ii}); % 分支集合转换成节点集合
+            disp(nodes);
+            if ~isempty(find(nodes==u))
+                index = ii;
+                break;
+            end
+        end
+    end
+
+end

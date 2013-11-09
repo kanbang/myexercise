@@ -1,0 +1,122 @@
+#include "StdAfx.h"
+#include "BuildNetwork.h"
+
+#include "../MineGE/HelperClass.h"
+
+#include <lemon/adaptors.h>
+#include <lemon/connectivity.h>
+
+typedef Digraph::NodeMap<int> CompMap;
+
+// 连通分支visitor(用于无向图)
+class CNNEdgeVisitor : public DfsVisitor<Digraph>
+{
+public:
+    CNNEdgeVisitor( EdgeArray& es_ ) : es( es_ ) {}
+    void discover( const Digraph::Arc& e )
+    {
+        addCNNEdge( e );
+    }
+    void examine( const Digraph::Arc& e )
+    {
+        addCNNEdge( e );
+    }
+
+private:
+    void addCNNEdge( const Digraph::Arc& e )
+    {
+        es.append( e );
+    }
+
+    EdgeArray& es;
+};
+
+static void FindEdgeByCCId( Digraph& dg, CompMap& compMap, int cc, EdgeArray& es )
+{
+    //查找第cc个连通块
+    typedef Digraph::NodeMap<bool> NodeFilter;
+    NodeFilter nf( dg, false );  // 用于过滤连通标识不等于cc的节点
+
+    int count = 0;
+    for( Digraph::NodeIt n( dg ); n != INVALID; ++n )
+    {
+        if( compMap[n] == cc )
+        {
+            count++;
+            nf[n] = true;
+        }
+    }
+    if( count < 2 ) return; // 忽略单独一个节点是(强)连通分量的情况
+
+    // 对有向图进行过滤, 过滤掉所有连通块标识不为cc的节点
+    typedef FilterNodes<Digraph, NodeFilter> NFGraph;
+    NFGraph nfg( dg, nf );
+
+    // 执行一次dfs
+    // 记录连通标识为cc的节点之间的分支集合(有向图分支)
+    CNNEdgeVisitor visitor( es );
+    DfsVisit<NFGraph, CNNEdgeVisitor> dv( nfg, visitor );
+    dv.run();
+}
+
+// 查找分支图元：巷道、工作面
+//static void FindEdgeGEs(AcDbObjectIdArray& objIds)
+//{
+//	DrawHelper::FindMineGEs(_T("LinkedGE"), objIds);
+//}
+
+// 查找连通块
+// 使用1维数组保存连通块信息
+int CC( const AcDbObjectIdArray& objIds, AcDbIntArray& ccIds )
+{
+    // 1) 查找所有的分支图元
+    //AcDbObjectIdArray allObjIds;
+    //FindEdgeGEs(allObjIds);
+    //acutPrintf(_T("\n查找到的分支个数:%d"), allObjIds.length());
+    //if(allObjIds.isEmpty()) return -1;
+
+    // 2) 创建网络
+    Digraph dg;
+    ObjectIdMap om( dg );
+    if( !BuildNetwork( objIds, dg, om ) ) return -1;
+
+    // 定义节点连通块map
+    CompMap compMap( dg );
+
+    // 转换成无向图
+    typedef Undirector<Digraph> UGraph;
+    UGraph ug( dg );
+
+    // 返回连通块个数
+    int c = lemon::connectedComponents( ug, compMap );
+    //acutPrintf(_T("\n连通块个数:%d"), c);
+    //if(c == 0) return true; // 网络为空
+
+    // 初始化
+    for( int i = 0; i < objIds.length(); i++ )
+    {
+        ccIds.append( 0 );
+    }
+
+    for( Digraph::ArcIt e( dg ); e != INVALID; ++e )
+    {
+        int pos = objIds.find( om[e] );
+        ccIds[pos] = compMap[dg.target( e )];
+    }
+    //for(int i=0;i<c;i++)
+    //{
+    //	EdgeArray es;
+    //	FindEdgeByCCId(dg, compMap, i, es);
+    //	if(es.isEmpty()) continue;
+
+    //	int len = es.length();
+    //	for(int j=0;j<len;j++)
+    //	{
+    //		Digraph::Arc e = es[j];
+    //		objIds.append(om[e]);
+    //	}
+    //	ccIds.append(len);
+    //}
+
+    return c;
+}

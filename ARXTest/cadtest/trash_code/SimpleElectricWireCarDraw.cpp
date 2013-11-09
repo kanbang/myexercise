@@ -1,0 +1,172 @@
+#include "StdAfx.h"
+#include "SimpleElectricWireCarDraw.h"
+
+ACRX_CONS_DEFINE_MEMBERS ( SimpleElectricWireCarDraw, MineGEDraw, 1 )
+
+//-----------------------------------------------------------------------------
+SimpleElectricWireCarDraw::SimpleElectricWireCarDraw () : MineGEDraw ()
+{
+}
+
+SimpleElectricWireCarDraw::~SimpleElectricWireCarDraw ()
+{
+}
+
+void SimpleElectricWireCarDraw::setAllExtraParamsToDefault()
+{
+    m_radius = 40;
+    m_distance = 20;
+    m_angle2 = PI / 3; // 60度
+    m_distance2 = 30;
+}
+
+void SimpleElectricWireCarDraw::configExtraParams()
+{
+
+}
+
+void SimpleElectricWireCarDraw::updateExtraParams()
+{
+
+}
+
+void SimpleElectricWireCarDraw::writeKeyParam( DrawParamWriter& writer )
+{
+    writer.writePoint( m_insertPt );
+    writer.writeDouble( m_angle );
+}
+
+void SimpleElectricWireCarDraw::readKeyParam( DrawParamReader& reader )
+{
+    reader.readPoint( m_insertPt );
+    reader.readDouble( m_angle );
+}
+
+void SimpleElectricWireCarDraw::readExtraParam( DrawParamReader& reader )
+{
+    reader.readDouble( m_radius );
+    reader.readDouble( m_distance );
+    reader.readDouble( m_angle2 );
+    reader.readDouble( m_distance2 );
+}
+
+void SimpleElectricWireCarDraw::writeExtraParam( DrawParamWriter& writer )
+{
+    writer.writeDouble( m_radius );
+    writer.writeDouble( m_distance );
+    writer.writeDouble( m_angle2 );
+    writer.writeDouble( m_distance2 );
+}
+
+Adesk::Boolean SimpleElectricWireCarDraw::subWorldDraw ( AcGiWorldDraw* mode )
+{
+    assertReadEnabled () ;
+
+    mode->geometry().circle( m_insertPt, m_radius, AcGeVector3d::kZAxis ); // 绘制一个圆
+
+    // 计算点坐标
+    AcGeVector3d v1( AcGeVector3d::kXAxis ), v2( AcGeVector3d::kXAxis );
+    v2.rotateBy( PI, AcGeVector3d::kZAxis );
+
+    AcGePoint3d leftPt = m_insertPt + v2 * m_distance;
+    AcGePoint3d rightPt = m_insertPt + v1 * m_distance;
+
+    AcGeVector3d v3( AcGeVector3d::kXAxis ), v4( AcGeVector3d::kXAxis );
+    v3.rotateBy( m_angle2, AcGeVector3d::kZAxis );
+    v4.rotateBy( m_angle2 + PI, AcGeVector3d::kZAxis );
+
+    AcGePoint3d leftPt2 = m_insertPt + v3 * m_distance2;
+    AcGePoint3d rightPt2 = m_insertPt + v4 * m_distance2;
+
+    AcGiSubEntityTraits& traits = mode->subEntityTraits();
+    Adesk::UInt16 cl = traits.color();;
+    AcGiFillType ft = traits.fillType();
+
+    AcCmEntityColor bgColor;
+    bgColor.setRGB( 255, 255, 0 ); // 黄色(yellow)
+
+    traits.setTrueColor( bgColor );
+    traits.setFillType( kAcGiFillAlways ); // 填充
+
+    AcGePoint3dArray pts;
+    pts.append( m_insertPt );
+    pts.append( leftPt );
+    pts.append( leftPt2 );
+    mode->geometry().polygon( pts.length(), pts.asArrayPtr() );
+
+    pts.removeAll();
+    pts.append( m_insertPt );
+    pts.append( rightPt );
+    pts.append( rightPt2 );
+    mode->geometry().polygon( pts.length(), pts.asArrayPtr() );
+
+    // 恢复属性
+    traits.setFillType( ft );
+    traits.setColor( cl );
+
+    return Adesk::kTrue;
+}
+
+Acad::ErrorStatus SimpleElectricWireCarDraw::subTransformBy( const AcGeMatrix3d& xform )
+{
+    m_insertPt.transformBy( xform );
+
+    // 构造一个倾角向量
+    AcGeVector3d v( AcGeVector3d::kXAxis );
+    v.rotateBy( m_angle, AcGeVector3d::kZAxis ); // 得到原有的倾角向量
+
+    // 执行变换
+    v.transformBy( xform );
+
+    m_angle = v.angleTo( AcGeVector3d::kXAxis, -AcGeVector3d::kZAxis );
+
+    return Acad::eOk;
+}
+
+Acad::ErrorStatus SimpleElectricWireCarDraw::subGetOsnapPoints (
+    AcDb::OsnapMode osnapMode,
+    int gsSelectionMark,
+    const AcGePoint3d& pickPoint,
+    const AcGePoint3d& lastPoint,
+    const AcGeMatrix3d& viewXform,
+    AcGePoint3dArray& snapPoints,
+    AcDbIntArray& geomIds ) const
+{
+    assertReadEnabled () ;
+    // 只捕捉1种类型的点：插入点
+    if( osnapMode != AcDb::kOsModeCen )
+        return Acad::eOk;
+
+    Acad::ErrorStatus es = Acad::eOk;
+
+    if ( osnapMode == AcDb::kOsModeCen )
+    {
+        snapPoints.append( m_insertPt );
+    }
+
+    return es;
+}
+
+Acad::ErrorStatus SimpleElectricWireCarDraw::subGetGripPoints (
+    AcGePoint3dArray& gripPoints, AcDbIntArray& osnapModes, AcDbIntArray& geomIds
+) const
+{
+    assertReadEnabled () ;
+
+    gripPoints.append( m_insertPt );
+
+    return Acad::eOk;
+}
+
+Acad::ErrorStatus SimpleElectricWireCarDraw::subMoveGripPointsAt ( const AcDbIntArray& indices, const AcGeVector3d& offset )
+{
+    assertWriteEnabled () ;
+
+    for( int i = 0; i < indices.length(); i++ )
+    {
+        int idx = indices.at( i );
+        // 始节点
+        if ( idx == 0 ) m_insertPt += offset;
+    }
+    return Acad::eOk;
+}

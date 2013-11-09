@@ -1,0 +1,205 @@
+#include "StdAfx.h"
+
+#include "GeoDef.h"
+
+/* 全局函数(RegionHelper.cpp) */
+extern AcDbRegion* BuildPointPolygonRegion( const AcGePoint3dArray& polygon );
+
+/* 全局函数(DoubleLineHelper.cpp) */
+extern void AdjustPointPolygon( const AcDbVoidPtrArray& lines, const AcGePoint3dArray& polygon, AcGePoint3dArray& ext_polygon, bool isInner );
+
+/* 全局函数(Tool.cpp) */
+extern void FindAllGoafs( AcDbObjectIdArray& objIds );
+extern void GetGoafPolygon( const AcDbObjectId& objId, AcGePoint3dArray& polygon );
+extern void FindAllAirLeaks( AcDbObjectIdArray& objIds );
+extern void FindAllGasPipes( AcDbObjectIdArray& objIds );
+extern void FindAllNitrogenPipes( AcDbObjectIdArray& objIds );
+extern void GetAirLeakPoints( AcDbObjectIdArray& objIds, AcGePoint3dArray& pts );
+extern void GetGasPipePoints( AcDbObjectIdArray& objIds, AcGePoint3dArray& pts );
+extern void GetNitrogenPipePoints( AcDbObjectIdArray& objIds, AcGePoint3dArray& pts );
+
+/* 全局函数(GeoTool.cpp) */
+extern int FindPointOnPolygon( const AcGePoint3d& pt, const AcGePoint3dArray& polygon );
+extern bool IsPointInPolygon ( const AcGePoint3d& p, const AcGePoint3dArray& ptPolygon );
+extern void BuildGoafPolygonArray( const AcDbObjectIdArray& objIds, AcGePoint3dArray& polygons, AcDbIntArray& polygon_counts );
+extern int ClockWise( const AcGePoint3dArray& polygon );
+
+static AcGePoint3d ProjectPointOfTwoLine( const AcGePoint3d& spt1, const AcGePoint3d& ept1,
+        const AcGePoint3d& spt2, const AcGePoint3d& ept2,
+        const AcGePoint3d& pt )
+{
+    // 计算点在直线spt1->ept1上的比例关系
+    double c = pt.distanceTo( spt1 ) / ept1.distanceTo( spt1 );
+
+    acutPrintf( _T( "\n比例c:%.4f" ), c );
+    acutPrintf( _T( "\nspt->(%.3f, %.3f), ept->(%.3f, %.3f)" ), spt2.x, spt2.y, ept2.x, ept2.y );
+    AcGeVector3d v = ept2 - spt2;
+    return spt2 + v * c;
+}
+
+static AcGePoint3d MinorAjustPointSource( bool isClockWise, const AcGePoint3d& p1, const AcGePoint3d& p2, const AcGePoint3d& p3, const AcGePoint3d& pt )
+{
+    AcGeVector3d v1 = p1 - p2, v2 = p3 - p2;
+    v1.normalize();
+    v2.normalize();
+
+    AcGeVector3d v3 = v1 + v2;
+    v3.normalize();
+
+    return pt + v3 * 0.1;
+}
+
+static void AdjustObturationPointSource( const AcGePoint3dArray& polygon, const AcGePoint3dArray& ext_polygon, AcGePoint3dArray& ob_pts )
+{
+    bool isClockWise = ( ClockWise( polygon ) == -1 );
+
+    int n = ob_pts.length();
+    int m = polygon.length();
+    for( int i = 0; i < n; i++ )
+    {
+        int pos = FindPointOnPolygon( ob_pts[i], polygon );
+        //acutPrintf(_T("\n点源位置:%d"), pos);
+        if( pos != -1 )
+        {
+            ob_pts[i] = ProjectPointOfTwoLine(
+                            polygon[pos],
+                            polygon[( pos + 1 ) % m],
+                            ext_polygon[pos],
+                            ext_polygon[( pos + 1 ) % m],
+                            ob_pts[i] );
+
+            // 进行将点源坐标向采空区做微小的调整
+            ob_pts[i] = MinorAjustPointSource(
+                            isClockWise,
+                            polygon[m - ( m - pos + 1 ) % m], // 前一个点
+                            polygon[pos],            // 当前点
+                            polygon[( pos + 1 ) % m], // 下一个点
+                            ob_pts[i] );
+        }
+    }
+}
+
+// 根据采空区重新计算密闭的点源坐标
+void AdjustObturationPointSource( const AcDbVoidPtrArray& lines, AcGePoint3dArray& ob_pts )
+{
+    // 查找所有的采空区
+    AcDbObjectIdArray objIds;
+    FindAllGoafs( objIds );
+
+    for( int i = 0; i < objIds.length(); i++ )
+    {
+        // 获取采空区的多边形
+        AcGePoint3dArray polygon;
+        GetGoafPolygon( objIds[i], polygon );
+
+        // 调整采空区多边形(向内扩展)
+        AcGePoint3dArray ext_polygon;
+        AdjustPointPolygon( lines, polygon, ext_polygon, true );
+
+        // 计算点源的新坐标
+        AdjustObturationPointSource( polygon, ext_polygon, ob_pts );
+    }
+}
+
+static bool IsPointInGoafPolygon( const AcGePoint3dArray& polygons, const AcDbIntArray& polygon_counts, int k, const AcGePoint3d& pt )
+{
+    int s = 0;
+    for( int i = 0; i < k; i++ )
+    {
+        s += polygon_counts[i];
+    }
+    int t = s + polygon_counts[k];
+
+    AcGePoint3dArray polygon;
+    for( int i = s; i < t; i++ )
+    {
+        polygon.append( polygons[i] );
+    }
+    return IsPointInPolygon( pt, polygon );
+}
+
+static bool IsPointInGoafPolygon( const AcGePoint3dArray& polygons, const AcDbIntArray& polygon_counts, const AcGePoint3d& pt )
+{
+    bool ret = false;
+    for( int i = 0; i < polygon_counts.length(); i++ )
+    {
+        if( IsPointInGoafPolygon( polygons, polygon_counts, i, pt ) )
+        {
+            ret = true;
+            break;
+        }
+    }
+    return ret;
+}
+
+enum POINT_SOURCE_TYPE
+{
+    PST_AIR_LEAK = 1,  // 漏风源汇
+    PST_GAS_PIPE = 2,  // 瓦斯钻孔
+    PST_N2_PIPE  = 3   // 注氮孔
+};
+
+static void BuildObjectIdAndPointArray( POINT_SOURCE_TYPE type, AcDbObjectIdArray& all_objIds, AcGePoint3dArray& all_pts )
+{
+    if( type == PST_AIR_LEAK )
+    {
+        FindAllAirLeaks( all_objIds );
+        GetAirLeakPoints( all_objIds, all_pts );
+    }
+    else if( type == PST_GAS_PIPE )
+    {
+        FindAllGasPipes( all_objIds );
+        GetGasPipePoints( all_objIds, all_pts );
+    }
+    else if( type == PST_N2_PIPE )
+    {
+        FindAllNitrogenPipes( all_objIds );
+        GetNitrogenPipePoints( all_objIds, all_pts );
+    }
+}
+
+static void FindPointSource_Impl( const AcGePoint3dArray& polygons, const AcDbIntArray& polygon_counts, POINT_SOURCE_TYPE type, AcDbObjectIdArray& objIds, AcGePoint3dArray& pts )
+{
+    AcDbObjectIdArray all_objIds;
+    AcGePoint3dArray all_pts;
+    BuildObjectIdAndPointArray( type, all_objIds, all_pts );
+
+    // 排除不在采空区内的源汇
+    for( int i = 0; i < all_pts.length(); i++ )
+    {
+        if( IsPointInGoafPolygon( polygons, polygon_counts, all_pts[i] ) )
+        {
+            objIds.append( all_objIds[i] );
+            pts.append( all_pts[i] );
+        }
+    }
+}
+
+static void FindPointSource_Helper( POINT_SOURCE_TYPE type, AcDbObjectIdArray& objIds, AcGePoint3dArray& pts )
+{
+    // 查找所有的采空区
+    AcDbObjectIdArray goaf_objIds;
+    FindAllGoafs( goaf_objIds );
+
+    // 分解采空区为多边形，构成1维数组
+    AcGePoint3dArray polygons;
+    AcDbIntArray polygon_counts;
+    BuildGoafPolygonArray( goaf_objIds, polygons, polygon_counts );
+
+    FindPointSource_Impl( polygons, polygon_counts, type, objIds, pts );
+}
+
+void FindAirLeakPointSource( AcDbObjectIdArray& al_objIds, AcGePoint3dArray& al_pts )
+{
+    FindPointSource_Helper( PST_AIR_LEAK, al_objIds, al_pts );
+}
+
+void FindGasPipePointSource( AcDbObjectIdArray& gas_pipe_objIds, AcGePoint3dArray& gas_pipe_pts )
+{
+    FindPointSource_Helper( PST_GAS_PIPE, gas_pipe_objIds, gas_pipe_pts );
+}
+
+void FindNitrogenPipePointSource( AcDbObjectIdArray& n2_pipe_objIds, AcGePoint3dArray& n2_pipe_pts )
+{
+    FindPointSource_Helper( PST_N2_PIPE, n2_pipe_objIds, n2_pipe_pts );
+}

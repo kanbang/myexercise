@@ -1,0 +1,30 @@
+function isBalanced = checkBalance(V, E)
+% 检查节点风量是否平衡
+
+isBalanced = 
+for v=V
+    % 计算流入流量
+    inSum = caclFlow(findInEdges(E, v));
+    % 计算流出流量
+    outSum = caclFlow(findOutEdges(E, v));
+    
+    disp(sprintf('节点%d流入流量%.3f, 流出流量:%.3f\n', inSum, outSum));    
+end
+
+    function inEdges = findInEdges(E, u)
+        inV = E(1:end, 3);
+        inEdges = E(find(inV==u), 1:end);
+    end
+
+    function outEdges = findOutEdges(E, u)
+        outV = E(1:end, 2);
+        outEdges = E(find(outV==u), 1:end);
+    end
+
+    function sumFlow = caclFlow(edges)
+        sumFlow = 0;
+        for e=edges
+            sumFlow = sumFlow+E(e,4);
+        end
+    end
+end

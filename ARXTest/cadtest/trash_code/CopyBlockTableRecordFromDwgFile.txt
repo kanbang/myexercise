@@ -1,0 +1,60 @@
+http://hi.baidu.com/slyrabbit/blog/item/447b2aff0b69623b5c600883.html
+// 从dwg文件中拷贝所有图块定义至当前文档中, 
+// 符号库: 可以用一个dwg文件存储多个符号块定义. 
+void CopyBlockTableRecordFromDwgFile(LPCTSTR dwgFile) 
+{ 
+    Acad::ErrorStatus es; 
+    AcDbDatabase *db = acdbHostApplicationServices()->workingDatabase(); 
+
+    ASSERT(dwgFile.CompareNoCase("") != 0); 
+
+   if (FileExists(dwgFile) == TRUE) { 
+       AcDbDatabase *pDb = new AcDbDatabase(Adesk::kFalse); 
+       es = pDb->readDwgFile(dwgFile); 
+      if (es != Acad::eOk) { 
+          acutPrintf("Failed to reading dwg.Error:%d\n",es); 
+         return; 
+       } 
+       AcDbBlockTable* pBT; 
+       es = pDb->getSymbolTable(pBT,AcDb::kForRead); 
+      if (es != Acad::eOk) { 
+          acutPrintf("Error getting BlockTable of dwg.Error:%d\n",es); 
+         return; 
+       } 
+
+       AcDbObjectId objId; 
+       AcDbObjectIdArray objIdArray; 
+
+       AcDbBlockTableIterator *pIT; 
+       es = pBT->newIterator(pIT); 
+      if (es != Acad::eOk) { 
+          acutPrintf("Error iterating block table.Error:%d\n",es); 
+         return; 
+       } 
+
+      for (; !pIT->done(); pIT->step()) { 
+          AcDbBlockTableRecord *pBTR; 
+          es = pIT->getRecordId(objId); 
+         if (es == Acad::eOk) { 
+             objIdArray.append(objId); 
+          } 
+       } 
+      delete pIT; 
+       pBT->close(); 
+
+      // 
+       AcDbObjectId destBlkId; 
+       destBlkId = db->currentSpaceId(); 
+
+       AcDbIdMapping idMap; 
+       idMap.setDestDb(db); 
+
+       es = db->wblockCloneObjects(objIdArray,destBlkId,idMap,AcDb::kDrcIgnore); 
+      if (es != Acad::eOk) { 
+          acutPrintf("Failed wblockCloneObjects.Error:%d\n",es); 
+         return; 
+       } 
+
+      delete pDb; 
+    } 
+} 

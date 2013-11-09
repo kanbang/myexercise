@@ -1,0 +1,141 @@
+Tunnel	名称
+Tunnel	断面面积
+Tunnel	风量
+Tunnel	风速
+Tunnel	温度
+Tunnel	湿度
+Tunnel	材质类型
+Tunnel	功能类型
+Tunnel	井筒附加属性
+Tunnel	超温控制措施
+Tunnel	胶轮车台数
+Tunnel	胶轮车功率
+
+Tunnel	平均绝对瓦斯涌出量
+Tunnel	瓦斯涌出不均衡通风系数
+
+Tunnel	是否单独配风
+Tunnel	配风风量
+
+ArcTunnel		名称
+ArcTunnel		断面面积
+ArcTunnel		风量
+ArcTunnel		风速
+ArcTunnel		温度
+ArcTunnel		湿度
+ArcTunnel		材质类型
+ArcTunnel		功能类型
+ArcTunnel		平均绝对瓦斯涌出量
+ArcTunnel		是否单独配风
+ArcTunnel		井筒附加属性
+ArcTunnel		超温控制措施
+ArcTunnel		胶轮车台数
+ArcTunnel		胶轮车功率
+
+WorkSurface	名称
+WorkSurface	断面面积
+WorkSurface	风量
+WorkSurface	风速
+WorkSurface	温度
+WorkSurface	材质类型
+WorkSurface	采煤方法
+WorkSurface	超温控制措施
+
+WorkSurface	是否处于高瓦斯区域
+WorkSurface	氧气浓度
+WorkSurface	二氧化碳浓度
+WorkSurface	一氧化碳浓度
+WorkSurface	氧化氮浓度
+WorkSurface	二氧化硫浓度
+WorkSurface	硫化氢浓度
+WorkSurface	氨浓度
+
+WorkSurface	工作面长度
+WorkSurface	最大控顶距
+WorkSurface	最小控顶距
+WorkSurface	实际采高
+WorkSurface	适宜风速
+WorkSurface	采高调整系数
+WorkSurface	长度调整系数
+WorkSurface	温度调整系数
+
+WorkSurface	平均绝对瓦斯涌出量
+WorkSurface	瓦斯涌出不均衡通风系数
+WorkSurface	专排瓦斯巷瓦斯涌出量
+WorkSurface	是否有突出危险
+
+WorkSurface	工作面最多人数
+WorkSurface	一次爆破炸药最大用量
+
+WorkSurface	始点标高
+WorkSurface	末点标高
+
+WorkSurface	配风风量
+
+TTunnel	名称
+TTunnel	断面面积
+TTunnel	风量
+TTunnel	风速
+TTunnel	温度
+TTunnel	材质类型
+TTunnel	超温控制措施
+
+TTunnel	氧气浓度
+TTunnel	二氧化碳浓度
+TTunnel	一氧化碳浓度
+TTunnel	氧化氮浓度
+TTunnel	二氧化硫浓度
+TTunnel	硫化氢浓度
+TTunnel	氨浓度
+
+TTunnel	平均绝对瓦斯涌出量
+TTunnel	瓦斯涌出不均衡通风系数
+
+TTunnel	工作面最多人数
+TTunnel	一次爆破炸药最大用量
+
+TTunnel	局部通风机台数
+TTunnel	局部通风机实际吸风量
+
+TTunnel	配风风量
+
+PowderStorage	名称
+PowderStorage	断面面积
+PowderStorage	风速
+PowderStorage	风量
+PowderStorage	温度
+PowderStorage	体积
+PowderStorage	超温控制措施
+
+PowderStorage	配风风量
+
+ChargeRoom	名称
+ChargeRoom	断面面积
+ChargeRoom	风速
+ChargeRoom	风量
+ChargeRoom	温度
+ChargeRoom	氢气量
+ChargeRoom	超温控制措施
+
+ChargeRoom	配风风量
+
+MachineRoom	名称
+MachineRoom	断面面积
+MachineRoom	风速
+MachineRoom	风量
+MachineRoom	温度
+MachineRoom	机电硐室类型
+MachineRoom	功率
+MachineRoom	发热系数
+MachineRoom	温度差
+MachineRoom	超温控制措施
+
+MachineRoom	配风风量
+
+WindDirection	通风类型
+
+WindStation	名称
+WindStation	测试断面面积
+WindStation	测试风速
+WindStation	测试风量
+WindStation	是否按规定测风

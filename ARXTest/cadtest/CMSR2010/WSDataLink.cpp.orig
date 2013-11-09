@@ -1,0 +1,18 @@
+#include "StdAfx.h"
+#include "WSDataLink.h"
+
+WSDataLink::WSDataLink(void)
+{
+}
+
+WSDataLink::~WSDataLink(void)
+{
+}
+
+void WSDataLink::regDatas()
+{
+	linkStringData(_T("名称"), &name);
+	linkBoolData(_T("是否有突出危险"), &hasRisk);
+	linkDoubleData(_T("始点标高"), &iz);
+	linkDoubleData(_T("末点标高"), &oz);
+}

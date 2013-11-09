@@ -1,0 +1,169 @@
+#include "StdAfx.h"
+#include "SingleBlendTunnelDraw.h"
+
+ACRX_CONS_DEFINE_MEMBERS (SingleBlendTunnelDraw, LinkedGEDraw, 1)
+
+SingleBlendTunnelDraw::SingleBlendTunnelDraw(void)
+{
+}
+
+SingleBlendTunnelDraw::~SingleBlendTunnelDraw(void)
+{
+}
+
+void SingleBlendTunnelDraw::setAllExtraParamsToDefault()
+{
+	m_blendPts.removeAll();
+
+	// 默认添加一个折点(也即中点)
+	AcGeVector3d v = m_endPt - m_startPt;
+	AcGePoint3d pt = m_startPt + v/2;
+	m_blendPts.append(pt);
+}
+
+void SingleBlendTunnelDraw::configExtraParams()
+{
+
+}
+
+void SingleBlendTunnelDraw::readExtraParam( DrawParamReader& reader )
+{
+	m_blendPts.removeAll();
+
+	int len = 0;
+	reader.readInt(len);
+	for(int i=0;i<len;i++)
+	{
+		AcGePoint3d pt;
+		reader.readPoint(pt);
+		m_blendPts.append(pt);
+	}
+}
+
+void SingleBlendTunnelDraw::writeExtraParam( DrawParamWriter& writer )
+{
+	int len = m_blendPts.length();
+	writer.writeInt(len);
+	for(int i=0;i<len;i++)
+	{
+		writer.writePoint(m_blendPts.at(i));
+	}
+}
+
+void SingleBlendTunnelDraw::drawLine(AcGiWorldDraw* mode, const AcGePoint3d& startPt, const AcGePoint3d& endPt )
+{
+	AcGePoint3dArray pts;
+	pts.append(startPt);
+	pts.append(endPt);
+	mode->geometry().worldLine(pts.asArrayPtr());
+}
+
+Adesk::Boolean SingleBlendTunnelDraw::subWorldDraw( AcGiWorldDraw *mode )
+{
+	assertReadEnabled () ;	
+
+	int len = m_blendPts.length();
+	//acutPrintf(_T("\ncall SingleBlendTunnelDraw::subWorldDraw()...  len=%d"), len);
+	if(len == 0) 
+	{
+		drawLine(mode, m_startPt, m_endPt);
+	}
+	else
+	{
+		// 绘制第1条线
+		drawLine(mode, m_startPt, m_blendPts.at(0));
+		for(int i=0;i<len-1;i++)
+		{
+			drawLine(mode, m_blendPts.at(i), m_blendPts.at(i+1));
+		}
+		drawLine(mode, m_blendPts.at(len-1), m_endPt);
+	}
+
+	return Adesk::kTrue;
+}
+
+//----- AcDbEntity protocols
+Acad::ErrorStatus SingleBlendTunnelDraw::subTransformBy( const AcGeMatrix3d & xform )
+{
+	m_startPt.transformBy(xform);
+	m_endPt.transformBy(xform);
+
+	int len = m_blendPts.length();
+	for(int i=0;i<len;i++)
+	{
+		m_blendPts[i].transformBy(xform);
+	}
+
+	return Acad::eOk;
+}
+
+//- Osnap points protocol
+Acad::ErrorStatus SingleBlendTunnelDraw::subGetOsnapPoints (
+	AcDb::OsnapMode osnapMode,
+	int gsSelectionMark,
+	const AcGePoint3d &pickPoint,
+	const AcGePoint3d &lastPoint,
+	const AcGeMatrix3d &viewXform,
+	AcGePoint3dArray &snapPoints,
+	AcDbIntArray &geomIds) const
+{
+	assertReadEnabled () ;
+
+	// 只捕捉1种类型的点：端点
+	if(osnapMode != AcDb::kOsModeEnd)
+		return Acad::eOk;
+
+	Acad::ErrorStatus es = Acad::eOk;
+
+	if (osnapMode == AcDb::kOsModeEnd)
+	{
+		snapPoints.append(m_startPt);
+		snapPoints.append(m_endPt);
+
+		int len = m_blendPts.length();
+		for(int i=0;i<len;i++)
+		{
+			snapPoints.append(m_blendPts.at(i));
+		}
+	}
+
+	return es;
+}
+
+//- Grip points protocol
+Acad::ErrorStatus SingleBlendTunnelDraw::subGetGripPoints (
+	AcGePoint3dArray &gripPoints, AcDbIntArray &osnapModes, AcDbIntArray &geomIds) const {
+		assertReadEnabled () ;
+		int len = m_blendPts.length();
+
+		//acutPrintf(_T("\ncall SingleBlendTunnelDraw::subGetGripPoints()  len=%d..."), len);
+
+		gripPoints.append(m_startPt);
+		gripPoints.append(m_endPt);
+
+		for(int i=0;i<len;i++)
+		{
+			gripPoints.append(m_blendPts.at(i));
+		}
+
+		return Acad::eOk;
+}
+
+Acad::ErrorStatus SingleBlendTunnelDraw::subMoveGripPointsAt (const AcDbIntArray &indices, const AcGeVector3d &offset) {
+	assertWriteEnabled () ;
+
+	int len = m_blendPts.length();
+
+	//acutPrintf(_T("\ncall SingleBlendTunnelDraw::subMoveGripPointsAt()  len=%d..."), len);
+
+	for(int i=0; i<indices.length(); i++) {
+		int idx = indices.at(i);
+		// 始节点
+		if (idx==0) m_startPt += offset;
+
+		if (idx==1) m_endPt += offset;
+
+		if(len>0) m_blendPts.setAt(idx-2, m_blendPts.at(idx-2)+offset);
+	}
+	return Acad::eOk;
+}

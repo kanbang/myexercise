@@ -1,0 +1,540 @@
+#include "stdafx.h"
+#include "ThreadTest.h"
+#include "ThreadTestDlg.h"
+
+#ifdef _DEBUG
+#define new DEBUG_NEW
+#endif
+
+// http://hi.baidu.com/magicyang87/blog/item/23bbf2fd72d6b81108244d73.html
+// 关于log的代码来源:
+// http://www.codeproject.com/KB/edit/RichEditLog_Demo.aspx
+//	1) AppendToLog()
+//	2) AppendToLogAndScroll()
+//	3) GetNumVisibleLines()
+
+// 自定义消息 -- 用于追加日志
+#define WM_APPEND_LOG WM_USER+1
+// 自定义消息 -- 用于清空日志
+#define WM_CLEAR_LOG WM_USER+2
+// 自定义消息 -- 用于关闭线程
+#define WM_CLOSE_THREAD WM_USER+3
+
+volatile bool global_bThreadRunning = true;
+
+// 发送消息追加日志
+static void AppendLogByMsg( HWND hWnd, const CString& str, COLORREF color = RGB( 0, 0 , 0 ) )
+{
+    Sleep( 1000 );
+    LogMsg msg = {str, color};
+    SendMessage( hWnd, WM_APPEND_LOG, ( WPARAM )&msg, 0 );
+}
+
+// 发送消息清空日志
+static void ClearLogByMsg( HWND hWnd )
+{
+    SendMessage( hWnd, WM_CLEAR_LOG, 0, 0 );
+}
+
+// 关闭线程
+static void CloseThreadByMsg( HWND hWnd )
+{
+    SendMessage( hWnd, WM_CLOSE_THREAD, 0, 0 );
+}
+
+static void ClearLog( CRichEditCtrl* pCtrl )
+{
+    pCtrl->SetFocus();
+    pCtrl->SetReadOnly( FALSE );
+
+    pCtrl->SetSel( 0, -1 );
+    pCtrl->Clear();
+
+    pCtrl->SetReadOnly( TRUE );
+}
+
+CThreadTestDlg::CThreadTestDlg( CWnd* pParent /*=NULL*/ )
+    : CDialog( CThreadTestDlg::IDD, pParent )
+{
+    m_hIcon = AfxGetApp()->LoadIcon( IDR_MAINFRAME );
+}
+
+void CThreadTestDlg::DoDataExchange( CDataExchange* pDX )
+{
+    CDialog::DoDataExchange( pDX );
+    DDX_Control( pDX, IDC_RICHEDIT21, m_ctrlLog );
+}
+
+BEGIN_MESSAGE_MAP( CThreadTestDlg, CDialog )
+    ON_WM_SYSCOMMAND()
+    ON_WM_PAINT()
+    ON_WM_QUERYDRAGICON()
+    //}}AFX_MSG_MAP
+    ON_BN_CLICKED( IDC_BUTTON1, &CThreadTestDlg::OnBnClickedButton1 )
+    ON_BN_CLICKED( IDC_BUTTON2, &CThreadTestDlg::OnBnClickedButton2 )
+    ON_BN_CLICKED( IDC_BUTTON3, &CThreadTestDlg::OnBnClickedButton3 )
+
+    ON_MESSAGE( WM_APPEND_LOG, OnAppendLog )
+    ON_MESSAGE( WM_CLEAR_LOG, OnClearLog )
+    ON_MESSAGE( WM_CLOSE_THREAD, OnCloseThread )
+
+END_MESSAGE_MAP()
+
+
+// CThreadTestDlg 消息处理程序
+
+BOOL CThreadTestDlg::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+
+    // 将“关于...”菜单项添加到系统菜单中。
+
+    // IDM_ABOUTBOX 必须在系统命令范围内。
+    ASSERT( ( IDM_ABOUTBOX & 0xFFF0 ) == IDM_ABOUTBOX );
+    ASSERT( IDM_ABOUTBOX < 0xF000 );
+
+    CMenu* pSysMenu = GetSystemMenu( FALSE );
+    if ( pSysMenu != NULL )
+    {
+        BOOL bNameValid;
+        CString strAboutMenu;
+        bNameValid = strAboutMenu.LoadString( IDS_ABOUTBOX );
+        ASSERT( bNameValid );
+        if ( !strAboutMenu.IsEmpty() )
+        {
+            pSysMenu->AppendMenu( MF_SEPARATOR );
+            pSysMenu->AppendMenu( MF_STRING, IDM_ABOUTBOX, strAboutMenu );
+        }
+    }
+
+    // 设置此对话框的图标。当应用程序主窗口不是对话框时，框架将自动
+    //  执行此操作
+    SetIcon( m_hIcon, TRUE );			// 设置大图标
+    SetIcon( m_hIcon, FALSE );		// 设置小图标
+
+    // TODO: 在此添加额外的初始化代码
+
+    return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
+}
+
+void CThreadTestDlg::OnSysCommand( UINT nID, LPARAM lParam )
+{
+    if ( ( nID & 0xFFF0 ) == IDM_ABOUTBOX )
+    {
+    }
+    else
+    {
+        CDialog::OnSysCommand( nID, lParam );
+    }
+}
+
+// 如果向对话框添加最小化按钮，则需要下面的代码
+//  来绘制该图标。对于使用文档/视图模型的 MFC 应用程序，
+//  这将由框架自动完成。
+
+void CThreadTestDlg::OnPaint()
+{
+    if ( IsIconic() )
+    {
+        CPaintDC dc( this ); // 用于绘制的设备上下文
+
+        SendMessage( WM_ICONERASEBKGND, reinterpret_cast<WPARAM>( dc.GetSafeHdc() ), 0 );
+
+        // 使图标在工作区矩形中居中
+        int cxIcon = GetSystemMetrics( SM_CXICON );
+        int cyIcon = GetSystemMetrics( SM_CYICON );
+        CRect rect;
+        GetClientRect( &rect );
+        int x = ( rect.Width() - cxIcon + 1 ) / 2;
+        int y = ( rect.Height() - cyIcon + 1 ) / 2;
+
+        // 绘制图标
+        dc.DrawIcon( x, y, m_hIcon );
+    }
+    else
+    {
+        CDialog::OnPaint();
+    }
+}
+
+HCURSOR CThreadTestDlg::OnQueryDragIcon()
+{
+    return static_cast<HCURSOR>( m_hIcon );
+}
+
+struct FFC_ThreadData
+{
+    HWND hWnd;
+    int state;
+};
+
+static void PrepareWork( HWND hWnd )
+{
+    // CleanWork();
+    ClearLogByMsg( hWnd );
+    AppendLogByMsg( hWnd, _T( "(一) 准备工作" ), RGB( 0, 0, 0 ) );
+}
+
+static void RunGambit( HWND hWnd )
+{
+    AppendLogByMsg( hWnd, _T( "\n(二) 几何建模" ), RGB( 0, 0, 0 ) );
+    AppendLogByMsg( hWnd, _T( "\n后台调用Gambit..." ), RGB( 0, 0, 0 ) );
+
+    CloseThreadByMsg( hWnd );
+}
+
+static void RunFluent( HWND hWnd )
+{
+    AppendLogByMsg( hWnd, _T( "\n(三) 模拟计算" ), RGB( 0, 0, 0 ) );
+    AppendLogByMsg( hWnd, _T( "\n后台调用Fluent...\n" ), RGB( 0, 0, 0 ) );
+
+    CloseThreadByMsg( hWnd );
+}
+
+CRITICAL_SECTION cs;
+
+static DWORD FFC_Thread( LPVOID lpParam )
+{
+    FFC_ThreadData* pData = ( FFC_ThreadData* )lpParam;
+    HWND hWnd = pData->hWnd;
+    int state = pData->state;
+
+    switch( state )
+    {
+    case 1:
+        RunGambit( hWnd );
+        break;
+
+    case 2:
+        RunFluent( hWnd );
+        break;
+    }
+
+    return 0;
+}
+
+static void CreateWorkThread( HWND hWnd, int state )
+{
+    // 创建监视线程
+    //	1) 线程数据
+    FFC_ThreadData data = {hWnd, state};
+
+    //	2) 创建线程
+    DWORD dwThreadId;
+    HANDLE m_hThread = CreateThread(
+                           NULL,              // default security attributes
+                           0,                 // use default stack size
+                           ( LPTHREAD_START_ROUTINE )FFC_Thread,        // thread function
+                           &data,             // argument to thread function
+                           0,                 // use default creation flags
+                           &dwThreadId );  // returns the thread identifier
+
+    // http://www.cnblogs.com/Sunwayking/articles/1976980.html
+    while( TRUE )
+    {
+        //wait for m_hThread to be over，and wait for
+        //QS_ALLINPUT（Any message is in the queue)
+        DWORD dwRet = MsgWaitForMultipleObjects( 1, &m_hThread, FALSE, INFINITE, QS_ALLINPUT );
+        if( WAIT_OBJECT_0 + 1 == dwRet )
+        {
+            //get the message from Queue
+            //and dispatch it to specific window
+            MSG msg;
+            PeekMessage( &msg, NULL, 0, 0, PM_REMOVE );
+            DispatchMessage( &msg );
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
+}
+
+void CThreadTestDlg::test()
+{
+    HWND hWnd = this->GetSafeHwnd();
+
+    // 准备
+    PrepareWork( hWnd );
+
+    // 开始执行
+    m_step = 1;
+    CreateWorkThread( hWnd, m_step );
+}
+
+void CThreadTestDlg::OnBnClickedButton1()
+{
+    global_bThreadRunning = true;
+
+    GetDlgItem( IDC_BUTTON1 )->EnableWindow( FALSE );
+
+    test();
+
+    GetDlgItem( IDC_BUTTON1 )->EnableWindow( TRUE );
+}
+
+void CThreadTestDlg::OnBnClickedButton2()
+{
+    // TODO: 在此添加控件通知处理程序代码
+}
+
+void CThreadTestDlg::OnBnClickedButton3()
+{
+    global_bThreadRunning = ( IDYES != MessageBox( _T( "结束线程?" ), _T( "警告" ), MB_YESNO ) );
+    if( !global_bThreadRunning )
+    {
+        AppendLogByMsg( this->GetSafeHwnd(), _T( "\n用户强制结束" ), RGB( 255, 0, 0 ) );
+    }
+}
+
+LRESULT CThreadTestDlg::OnAppendLog( WPARAM wParam, LPARAM lParam )
+{
+    LogMsg* pMsg = ( LogMsg* )wParam;
+    AppendToLogAndScroll( pMsg->str, pMsg->color );
+    return 0;
+}
+
+LRESULT CThreadTestDlg::OnClearLog( WPARAM wParam, LPARAM lParam )
+{
+    ClearLog( &m_ctrlLog );
+    return 0;
+}
+
+LRESULT CThreadTestDlg::OnCloseThread( WPARAM wParam, LPARAM lParam )
+{
+    CloseHandle( m_hThread );
+    if( m_step < 2 )
+    {
+        m_step++;
+        CreateWorkThread( this->GetSafeHwnd(), m_step );
+    }
+    return 0;
+}
+
+
+//-----------------------------------------------------------------------------
+//  AppendToLog()
+///
+/// \brief	Add a string to the log window at the current position and scroll
+///			by the number of inserted lines (the naive solution for
+///			auto-scrolling).
+///
+/// The string is added to the log starting at the current position,
+/// i.e. without starting a new line. Then the control scrolls down by the
+/// number of lines inserted.
+/// The string is displayed in the specified text color.
+/// The string may be a multiline string using carriage return/line feed
+/// (i.e. newline) characters to indicate a line breaks.
+///
+/// The scrolling mechanism used here is kind of naive, because it assumes
+/// that the user did not touch the scroll bars and that the scroll position
+/// is always the end of the text. However, this is not the general case.
+/// In general, we need to assume that the current scrolling position is
+/// unkown. A solution for that is shown in the AppendToLogAndScroll()
+/// method.
+///
+/// \param [in]		str		The string to add to the message log.
+/// \param [in]		color	The text color of the string. You may use the
+///							RGB(r,g,b) macro to specify the color byte-wise.
+/// \return					An integer indicating sucess or failure:
+///							- 0, if the function succeeded.
+///							- (-1), if the function failed.
+///							(This function always returns 0, because no
+///							parameter or failure checking is done.)
+///
+/// \remark
+/// Support for adding multiline strings requires the ES_MULTILINE style
+/// to be set.
+/// If you are not using the Visual Studio Wizards but create the control
+/// indirectly using the Create() method, you should use the following
+/// style: WS_CHILD|WS_VSCROLL|WS_HSCROLL|ES_MULTILINE|ES_READONLY.
+///
+/// \sa AppendToLogAndScroll()
+//-----------------------------------------------------------------------------
+int CThreadTestDlg::AppendToLog( CString str, COLORREF color )
+{
+    int nOldLines = 0, nNewLines = 0, nScroll = 0;
+    long nInsertionPoint = 0;
+    //CHARRANGE cr;
+    CHARFORMAT cf;
+
+    // Save number of lines before insertion of new text
+    nOldLines		= m_ctrlLog.GetLineCount();
+
+    // Initialize character format structure
+    cf.cbSize		= sizeof( CHARFORMAT );
+    cf.dwMask		= CFM_COLOR;
+    cf.dwEffects	= 0;	// To disable CFE_AUTOCOLOR
+    cf.crTextColor	= color;
+
+    // Set insertion point to end of text
+    nInsertionPoint = m_ctrlLog.GetWindowTextLength();
+    /*if (nInsertionPoint > 800)
+    {
+    	// Delete first half of text to avoid running into the 64k limit
+    	m_ctrlLog.SetSel(0, nInsertionPoint / 2);
+    	m_ctrlLog.ReplaceSel("");
+    	UpdateData(FALSE);
+    }*/
+    nInsertionPoint = -1;
+    m_ctrlLog.SetSel( nInsertionPoint, -1 );
+
+    //  Set the character format
+    m_ctrlLog.SetSelectionCharFormat( cf );
+
+    // Replace selection. Because we have nothing selected, this will simply insert
+    // the string at the current caret position.
+    m_ctrlLog.ReplaceSel( str );
+
+    // Get new line count
+    nNewLines		= m_ctrlLog.GetLineCount();
+
+    // Scroll by the number of lines just inserted
+    nScroll			= nNewLines - nOldLines;
+    m_ctrlLog.LineScroll( nScroll );
+
+    return 0;
+}
+
+
+//-----------------------------------------------------------------------------
+//  AppendToLogAndScroll()
+///
+/// \brief	Add a string to the serial log window at the current position,
+///			then scroll to the end of the text such that the last line of
+///			the text is shown at the bottom of the CRichEditCtrl.
+///
+/// The string is added to the message log starting at the current position,
+/// i.e. without starting a new line. Then the control scrolls down to show
+/// as much text as possible, including the last line of text at the very
+/// bottom.
+/// The string is displayed in the specified text color.
+/// The string may be a multiline string using carriage return/line feed
+/// (i.e. newline) characters to indicate a line breaks.
+///
+/// \param [in]		str		The string to add to the message log.
+/// \param [in]		color	The text color of the string. You may use the
+///							RGB(r,g,b) macro to specify the color byte-wise.
+/// \return					An integer indicating sucess or failure:
+///							- 0, if the function succeeded.
+///							- (-1), if the function failed.
+///							(This function always returns 0, because no
+///							parameter or failure checking is done.)
+///
+/// \remark
+/// The automatic scrolling function would be easy, if the MFC documentation
+/// was correct. Unfortunetely, it is not as trivial as one might think.
+/// If the CRichEditCtrl has the focus, it scrolls automatically if you
+/// insert text programatically. If it does not have the focus, it does not
+/// scroll automatically, so in that case you can use the LineScroll()
+/// method and you get the results you would expect when reading the MFC docs.
+/// This is true even if ES_AUTOxSCROLL style is NOT set.
+///
+/// So the point is to check in the AppendToLogAndScroll() method if the
+/// affected CRichEditCtrl has the focus. If so, we must not call
+/// LineScroll(). If not, it is safe to call LineSroll() to first scroll to
+/// the very end, which means that the last line of text is shown at the top
+/// of the CRichEditCtrl.
+/// Then we call LineScroll() a second time, this time scrolling back by
+/// the number of visible lines. This leads to having the last line of the
+/// text being displayed at the bottom of CRichEditCtrl.
+///
+/// Please note that in this sample application, the CRichEditCtrl never has
+/// the focus, because we always have to click a button in order to insert
+/// text. However, if you are using the code in an application not based on
+/// a dialog and that fills up the control where the user could have set focus
+/// to the control first, this method would fail to scroll correctly without
+/// checking the focus.
+/// I used this code in an MDI application, and there the control claims
+/// to have the focus if I click into the control before clicking a menu
+/// command (whatever the reason might be why in that case the focus is
+/// not lost to the menu command).
+///
+/// Please note that the code is written for maximum comprehension / good
+/// readability, not for code or execution efficiency.
+//-----------------------------------------------------------------------------
+int CThreadTestDlg::AppendToLogAndScroll( CString str, COLORREF color )
+{
+    long nVisible = 0;
+    long nInsertionPoint = 0;
+    CHARFORMAT cf;
+
+    // Initialize character format structure
+    cf.cbSize = sizeof( CHARFORMAT );
+    cf.dwMask = CFM_COLOR | CFM_SIZE;
+    cf.dwEffects = 0; // To disable CFE_AUTOCOLOR
+    cf.yHeight = 210;  // 1twips = 15px, 近似使用五号字体
+    cf.crTextColor = color;
+
+    // Set insertion point to end of text
+    nInsertionPoint = m_ctrlLog.GetWindowTextLength();
+    m_ctrlLog.SetSel( nInsertionPoint, -1 );
+
+    // Set the character format
+    m_ctrlLog.SetSelectionCharFormat( cf );
+
+    // Replace selection. Because we have nothing
+    // selected, this will simply insert
+    // the string at the current caret position.
+    m_ctrlLog.ReplaceSel( str );
+
+    // Get number of currently visible lines or maximum number of visible lines
+    // (We must call GetNumVisibleLines() before the first call to LineScroll()!)
+    nVisible   = GetNumVisibleLines( &m_ctrlLog );
+
+    // Now this is the fix of CRichEditCtrl's abnormal behaviour when used
+    // in an application not based on dialogs. Checking the focus prevents
+    // us from scrolling when the CRichEditCtrl does so automatically,
+    // even though ES_AUTOxSCROLL style is NOT set.
+    if ( &m_ctrlLog != m_ctrlLog.GetFocus() )
+    {
+        m_ctrlLog.LineScroll( INT_MAX );
+        m_ctrlLog.LineScroll( 1 - nVisible );
+    }
+
+    return 0;
+}
+
+
+//-----------------------------------------------------------------------------
+//  GetNumVisibleLines()
+///
+/// \brief	Returns the number of lines that are currently visible in the
+///			client area of the given CRichEditCtrl.
+///
+///
+///
+/// \param [in]		pCtrl	Pointer to the CRichEditCtrl object to query.
+///
+/// \return					The number of currently visible lines.
+///
+/// \remark
+/// The code is written for best comprehension / readability, not for code
+/// or execution efficiency.
+//-----------------------------------------------------------------------------
+int CThreadTestDlg::GetNumVisibleLines( CRichEditCtrl* pCtrl )
+{
+    CRect rect;
+    long nFirstChar, nLastChar;
+    long nFirstLine, nLastLine;
+
+    // Get client rect of rich edit control
+    pCtrl->GetClientRect( rect );
+
+    // Get character index close to upper left corner
+    nFirstChar = pCtrl->CharFromPos( CPoint( 0, 0 ) );
+
+    // Get character index close to lower right corner
+    nLastChar = pCtrl->CharFromPos( CPoint( rect.right, rect.bottom ) );
+    if ( nLastChar < 0 )
+    {
+        nLastChar = pCtrl->GetTextLength();
+    }
+
+    // Convert to lines
+    nFirstLine = pCtrl->LineFromChar( nFirstChar );
+    nLastLine  = pCtrl->LineFromChar( nLastChar );
+
+    return ( nLastLine - nFirstLine );
+}

@@ -1,0 +1,397 @@
+#include "StdAfx.h"
+
+#include "GeoDef.h"
+#include "DoubleLine.h"
+
+/* 全局函数(Tool.cpp) */
+extern void FindAllLines(AcDbObjectIdArray& objIds);
+extern void BuildWSRelation(const AcDbVoidPtrArray& lines, AcDbIntArray& ws_relation);
+extern void BuildGoafRelation(const AcDbVoidPtrArray& lines, AcDbIntArray& goaf_relation);
+extern void RemoveUnrelatedLines(AcDbObjectIdArray& objIds, 
+								 AcDbVoidPtrArray& lines, 
+								 const AcDbIntArray& ws_relation, 
+								 const AcDbIntArray& goaf_relation);
+extern void FindPointSourceOnGoaf(AcDbObjectIdArray& objIds, AcDbVoidPtrArray& lines, 
+						   const AcDbIntArray& ws_relation, const AcDbIntArray& goaf_relation,
+						   AcDbObjectIdArray& ob_objIds, AcGePoint3dArray& ob_pts, AcDbIntArray& ob_types);
+
+extern void TruncateLines(const AcDbVoidPtrArray& lines, double trlen, 
+						 const AcDbIntArray& ws_relation, 
+						 const AcDbIntArray& goaf_relation);
+
+/* 全局函数(CC.cpp) */
+extern int CC(const AcDbObjectIdArray& objIds, AcDbIntArray& ccIds);
+
+/* 全局函数(BuildLineArray.cpp) */
+extern void BuildLineArray(const AcDbObjectIdArray& objIds, AcDbVoidPtrArray& lines);
+
+/* 全局函数(EdgeJunctionClosure.cpp) */
+extern void EdgeJunctionClourse(const AcDbVoidPtrArray& lines);
+
+/* 全局函数(GeoTool.cpp) */
+extern int ClockWise(const AcGePoint3dArray& polygon);
+extern double LinePerpendicularAngle(const AcGePoint3d& spt, const AcGePoint3d& ept, bool isClockWise);
+
+static void PrintLine(DoubleLine* pLine)
+{
+	AcGePoint3d ls, le, rs, re;
+	pLine->getStartPoints(ls, rs);
+	pLine->getEndPoints(le, re);
+
+	acutPrintf(_T("左侧: (%.3f, %.3f) -> (%.3f, %.3f)\n"), ls.x, ls.y, le.x, le.y);
+	acutPrintf(_T("右侧: (%.3f, %.3f) -> (%.3f, %.3f)\n"), rs.x, rs.y, re.x, re.y);
+}
+
+void PrintLines(const AcDbVoidPtrArray& lines)
+{
+	acutPrintf(_T("直线个数:%d\n"),lines.length());
+
+	for(int i=0;i<lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)lines[i];
+		acutPrintf(_T("第%d条直线:\n"), i);
+		PrintLine(pLine);
+		acutPrintf(_T("\n"));
+	}
+}
+
+void PrintObPoints(const AcGePoint3dArray& ob_pts)
+{
+	acutPrintf(_T("\n密闭点源个数:%d"), ob_pts.length());
+	int n = ob_pts.length();
+	for(int i=0;i<n;i++)
+	{
+		acutPrintf(_T("\n(%.3f, %.3f)"), ob_pts[i].x, ob_pts[i].y);
+	}
+}
+
+void GetNodePoints(const AcDbVoidPtrArray& lines, AcGePoint3dArray& pts)
+{
+	for(int i=0;i<lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)lines[i];
+		AcGePoint3d startPt, endPt;
+		pLine->getSEPoint(startPt, endPt);
+		if(!pts.contains(startPt))
+		{
+			pts.append(startPt);
+		}
+		if(!pts.contains(endPt))
+		{
+			pts.append(endPt);
+		}
+	}
+}
+
+void FindLinesByPoint( const AcDbVoidPtrArray& lines, const AcGePoint3d& junctionPt, AcDbIntArray& linePos)
+{
+	int n = lines.length();
+	for(int i=0;i<n;i++)
+	{
+		DoubleLine* pEdge = (DoubleLine*)lines[i];		
+		AcGePoint3d startPt, endPt;
+		pEdge->getSEPoint(startPt, endPt);
+		if(startPt == junctionPt || endPt == junctionPt)
+		{
+			linePos.append(i);
+		}
+	}
+}
+
+static void RemoveNullLines(AcDbObjectIdArray& objIds, AcDbVoidPtrArray& lines)
+{
+	AcDbObjectIdArray all_objIds;
+	all_objIds.append(objIds);
+	objIds.removeAll();
+
+	AcDbVoidPtrArray all_lines;
+	all_lines.append(lines);
+	lines.removeAll();
+
+	int n = all_lines.length();
+	for(int i=0;i<n;i++)
+	{
+		if(all_lines[i] != 0 && !all_objIds[i].isNull())
+		{
+			lines.append(all_lines[i]);
+			objIds.append(all_objIds[i]);
+		}
+	}
+}
+
+// 测试用,打印有效的直线个数
+static int CountValidLines(const AcDbVoidPtrArray& lines)
+{
+	int count = 0;
+	int n = lines.length();
+	for(int i=0;i<n;i++)
+	{
+		if(lines[i] != 0) count++;
+	}
+	return count;
+}
+
+void CreateLineArray(AcDbObjectIdArray& objIds, AcDbIntArray& ccIds, AcDbVoidPtrArray& lines, double truncLen, 
+					 AcDbObjectIdArray& ob_objIds, AcGePoint3dArray& ob_pts, AcDbIntArray& ob_types)
+{
+	// 1) 查找所有的直线图元(巷道、工作面)
+	FindAllLines(objIds);
+
+	// 2) 创建直线数组(DoubleLineArray)
+	BuildLineArray(objIds, lines);
+	acutPrintf(_T("\n直线数组个数:%d"), lines.length());
+
+	PrintLines(lines);
+
+	// 3) 构建直线与工作面的关系
+	// 建立直线与工作面的关系
+	//	0) 与工作面不关联
+	//	1) 一个点与工作面关联
+	//		+1/-1分别表示始点或末点与工作面关联
+	//	2) 两点都在工作面上
+	AcDbIntArray ws_relation;
+	BuildWSRelation(lines, ws_relation);
+
+	// 4) 构建直线与采空区的关系
+	// 直线与采空区的关系
+	//	0) 两个端点不在采空区上
+	//	1) 一个端点在采空区上，另外一个在采空区外
+	//     注：+1/-1分别始点spt或末点ept在采空区上
+	//	2) 两个端点在采空区的一条边上
+	//     注：+2/-2分别表示两个端点在一条边上或在两条边上
+	AcDbIntArray goaf_relation;
+	BuildGoafRelation(lines, goaf_relation);
+
+	assert(ws_relation.length() == lines.length());
+	assert(ws_relation.length() == goaf_relation.length());
+
+	// 3) 排除与工作面和采空区没有关联的巷道
+	RemoveUnrelatedLines(objIds, lines, ws_relation, goaf_relation);
+	acutPrintf(_T("\n排除无关巷道后的个数:%d"), CountValidLines(lines));
+
+	// 4) 查找点源
+	FindPointSourceOnGoaf(objIds, lines, ws_relation, goaf_relation, ob_objIds, ob_pts, ob_types);
+	acutPrintf(_T("\n查找点源后的巷道个数:%d, 点源个数:%d"), CountValidLines(lines), ob_pts.length());
+
+	// 5) 截断工作面之前的巷道
+	TruncateLines(lines, truncLen, ws_relation, goaf_relation);
+	acutPrintf(_T("\n截断巷道后的个数: %d"), CountValidLines(lines));
+
+	// 6) 清除指向为null的DoubleLine指针
+	RemoveNullLines(objIds, lines);
+	acutPrintf(_T("\n清除null指针后的个数:%d"), lines.length());
+
+	// 7) 处理闭合
+	EdgeJunctionClourse(lines);
+
+	// 8) 查找连通块
+	CC(objIds, ccIds);
+	acutPrintf(_T("\n连通块数组的个数:%d"), ccIds.length());
+}
+
+void DeleteLineArray(const AcDbVoidPtrArray& lines)
+{
+	for(int i=0;i<lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)lines[i];
+		delete pLine;
+	}
+}
+
+int FindLineByPoints(const AcDbVoidPtrArray& lines, const AcGePoint3d& spt, const AcGePoint3d& ept)
+{
+	int pos = -1;
+	for(int i=0;i<lines.length();i++)
+	{
+		// 直线的两点
+		DoubleLine* pLine = (DoubleLine*)lines[i];		
+		AcGePoint3d startPt, endPt;
+		pLine->getSEPoint(startPt, endPt);
+
+		// 构造arx几何直线
+		//AcGeLine3d ge_line(startPt, endPt);
+		//if(ge_line.isOn(spt) && ge_line.isOn(ept))
+		if((spt == startPt && ept == endPt) || 
+			(spt == endPt && ept == startPt))
+		{
+			pos = i; break;
+		}
+	}
+	return pos;
+}
+
+// 参数说明：
+//		1) 一条双线(DoubleLine)
+//		2) 多边形polygon上的一条边(spt --> ept)
+//		3) 多边形的方向isClockWise(逆时针/顺时针)
+//		4) 扩展方向isInner(向多边形内部或外部延伸)
+// 计算结果:
+//		1) 返回双线两侧的边(left/right),修改spt和ept
+static void ExtendLine(DoubleLine* pLine, AcGePoint3d& spt, AcGePoint3d& ept, bool isClockWise, bool isInner)
+{
+	AcGePoint3d startPt, endPt;
+	pLine->getSEPoint(startPt, endPt);
+
+	AcGePoint3d ls, rs, le, re;
+	pLine->getStartPoints(ls, rs);
+	pLine->getEndPoints(le, re);
+
+	AcGeVector3d v1 = endPt - startPt;
+	AcGeVector3d v2 = ept - spt;
+
+	// spt->ept与start->endPt是否方向相同
+	if(v1.dotProduct(v2) > 0)
+	{
+		if((!isClockWise && isInner) || (isClockWise && !isInner))
+		{
+			spt = rs; ept = re;
+		}
+		else
+		{
+			spt = ls; ept = le;
+		}
+	}
+	else
+	{
+		if((isClockWise && isInner) || (!isClockWise && !isInner))
+		{
+			spt = re; ept = rs;
+		}
+		else
+		{
+			spt = le; ept = ls;
+		}
+	}
+}
+
+static void ExpandLinesOnPolygon_Helper(
+	const AcDbVoidPtrArray& lines, 
+	const AcGePoint3dArray& polygon, 
+	AcGePoint3dArray& spts,
+	AcGePoint3dArray& epts,
+	AcGeDoubleArray& dirs,
+	AcDbIntArray& modifyPos,
+	bool isInner)
+{
+	// 判断多边形方向
+	// ClockWise()返回-1表示逆时针
+	bool isClockWise = (ClockWise(polygon) == -1);
+
+	// 查找采空区多边形中的回采工作面直线
+	// 并返回多边形中的边
+	int n = polygon.length();
+	for(int i=0;i<n;i++)
+	{
+		AcGePoint3d spt = polygon[i], ept = polygon[(i+1)%n];
+		int pos = FindLineByPoints(lines, spt, ept);
+		if(pos > -1)
+		{
+			ExtendLine((DoubleLine*)lines[pos], spt, ept, isClockWise, isInner);
+			spts.append(spt);
+			epts.append(ept);
+			dirs.append(LinePerpendicularAngle(spt, ept, isClockWise));
+			modifyPos.append(i);  // 记录多边形哪条边被修改了???
+		}
+	}
+}
+
+void ExpandLinesOnPolygon(const AcDbVoidPtrArray& lines, 
+						const AcGePoint3dArray& polygon, 
+						AcGePoint3dArray& spts,
+						AcGePoint3dArray& epts,
+						AcGeDoubleArray& dirs,
+						bool isInner)
+{
+	AcDbIntArray modifyPos;
+	ExpandLinesOnPolygon_Helper(lines, polygon, spts, epts, dirs, modifyPos, isInner);
+}
+
+// 调整多边形,修改点坐标
+void AdjustPointPolygon(const AcDbVoidPtrArray& lines, const AcGePoint3dArray& polygon, AcGePoint3dArray& ext_polygon, bool isInner)
+{
+	// 查找多边形中的所有可能需要修改的边(两侧边)
+	AcGePoint3dArray spts, epts;
+	AcGeDoubleArray dirs;
+	AcDbIntArray modifyPos;
+	ExpandLinesOnPolygon_Helper(lines, polygon, spts, epts, dirs, modifyPos, isInner);  // 向内延伸
+
+	// 将点多边形转换成边多边形
+	int m = polygon.length();
+	ext_polygon.append(polygon);
+
+	// 修改多边形
+	int n = modifyPos.length();
+	for(int i=0;i<n;i++)
+	{
+		int pos = modifyPos[i];
+		acutPrintf(_T("\n采空区第%d条边被修改"), pos);
+		ext_polygon[pos] = spts[i];
+		ext_polygon[(pos+1)%m] = epts[i];
+	}
+}
+
+// 调整多边形,修改点坐标
+void AdjustLinePolygon(const AcDbVoidPtrArray& lines, const AcGePoint3dArray& polygon, AcGePoint3dArray& line_polygon, bool isInner)
+{
+	// 查找多边形中的所有可能需要修改的边(两侧边)
+	AcGePoint3dArray spts, epts;
+	AcGeDoubleArray dirs;
+	AcDbIntArray modifyPos;
+	ExpandLinesOnPolygon_Helper(lines, polygon, spts, epts, dirs, modifyPos, isInner);  // 向内延伸
+
+	// 将点多边形转换成边多边形
+	int m = polygon.length();
+	for(int i=0;i<m;i++)
+	{
+		line_polygon.append(polygon[i]);
+		line_polygon.append(polygon[(i+1)%m]);
+	}
+
+	// 修改多边形
+	int n = modifyPos.length();
+	for(int i=0;i<n;i++)
+	{
+		int pos = modifyPos[i];
+		line_polygon[2*pos] = spts[i];
+		line_polygon[2*pos+1] = epts[i];
+	}
+}
+
+void FilterLines(const AcDbVoidPtrArray& all_lines, AcDbVoidPtrArray& lines, bool findWS)
+{
+	for(int i=0;i<all_lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)all_lines[i];
+		bool isWS = pLine->isWorkSurface();
+		if((isWS && findWS) || (!isWS && !findWS))
+		{
+			lines.append(all_lines[i]);
+		}
+	}
+}
+
+// 计算点在双线上的投影
+// 中线点、左侧点、右侧点
+void ProjectPointOnLine(const AcGePoint3d& pt, DoubleLine* pLine, 
+						AcGePoint3d& cpt, AcGePoint3d& lpt, AcGePoint3d& rpt)
+{
+	AcGePoint3d spt, ept;
+	pLine->getSEPoint(spt, ept);
+
+	AcGePoint3d ls, le, rs, re;
+	pLine->getStartPoints(ls, rs);
+	pLine->getEndPoints(le, re);
+
+	// 获取中线最近点
+	AcGeLineSeg3d line(spt, ept);
+	cpt = line.closestPointTo(pt);
+
+	// 获取"左侧"最近点
+	line.set(ls, le);
+	lpt = line.closestPointTo(pt);
+
+	// 获取"右侧"最近点
+	line.set(rs, re);
+	rpt = line.closestPointTo(pt);
+}
+

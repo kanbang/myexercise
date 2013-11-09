@@ -1,0 +1,66 @@
+#include "StdAfx.h"
+#include "UIHelper.h"
+
+#include "Resource.h"
+
+#include "../ArxUI/MenuHelper.h"
+#include "../ArxUI/ToolBarHelper.h"
+#include "../ArxUI/ObjectContextMenuHelper.h"
+
+void UIHelper::RegisterAppMenu()
+{
+    MenuHelper menu;
+    menu.AddMenu( _T( "我的菜单" ) );
+    menu.AddSubMenu( _T( "弹出对话框" ), _T( "_DLG " ) );
+    menu.AddSubMenu( _T( "绘制线条" ), _T( "_DRAWL " ) );
+    menu.AddSubMenu( _T( "*Line" ) ); // 加"*"号表示是二级子菜单
+    menu.AddSubMenu( _T( "$CIRCLE" ), _T( "_CIRCLE " ) ); //加"$"号表示二级子菜单下的菜单条
+    menu.AddSubSeparator();
+    menu.AddSubMenu( _T( "$PLINE" ), _T( "_PLINE " ) ); //加"$"号表示二级子菜单下的菜单条
+    menu.AddSeparator();
+    menu.AddSubMenu( _T( "选择文件夹" ), _T( "_SELFOLDER " ) );
+    menu.AddSubMenu( _T( "*TEXT" ) ); // 加"*"号表示是二级子菜单
+    menu.AddSubMenu( _T( "$MTEXT" ), _T( "_TEXT " ) ); //加"$"号表示二级子菜单下的菜单条
+    menu.CreateMenus();
+}
+
+void UIHelper::UnRegisterAppMenu()
+{
+    MenuHelper::CleanUpMenus();
+}
+
+void UIHelper::RegisterAppToolBar()
+{
+    ToolBarHelper toolbar;
+    toolbar.AddToolBar( _T( "通风图元" ) );
+    toolbar.AddToolButton( _T( "巷道" ), _T( "JL.DrawTunnel" ), _T( "绘制巷道" ), _T( "1.bmp" ) );
+    toolbar.AddToolButton( _T( "风门" ), _T( "JL.DrawFan" ), _T( "绘制风门" ), _T( "2.bmp" ) );
+    toolbar.AddSeparator();
+    toolbar.AddToolButton( _T( "测风站" ), _T( "JL.DrawStation" ), _T( "绘制测风站" ), _T( "3.bmp" ) );
+    toolbar.AddToolBar( _T( "瓦斯图元" ) );
+    toolbar.AddToolButton( _T( "见煤钻孔" ), _T( "JL.DrawCoalHole" ), _T( "绘制见煤钻孔" ), _T( "4.bmp" ) );
+    toolbar.CreateToolBars();
+}
+
+void UIHelper::UnRegisterAppToolBar()
+{
+    ToolBarHelper::CleanUpToolBars();
+}
+
+void UIHelper::RegisterObjectContextMenu( const void* appId )
+{
+    ObjectContextMenu* pObjMenu1 = new ObjectContextMenu( _T( "AcDbLine" ), IDR_MENU1 );
+    pObjMenu1->regMenuCmd( ID_32769, _T( "CIRCLE" ) );
+
+    ObjectContextMenu* pObjMenu2 = new ObjectContextMenu( _T( "AcDbLine" ), UI_LOADER_MNU_OBJECT_WS );
+    pObjMenu2->regMenuCmd( UI_LOADER_MNU_ADVANCE_WS, _T( "LINE" ) );
+
+
+    ObjectContextMenuHelper::RegObjectContextMenu( pObjMenu1, appId );
+    ObjectContextMenuHelper::RegObjectContextMenu( pObjMenu2, appId );
+}
+
+void UIHelper::UnRegisterObjectContextMenu()
+{
+    ObjectContextMenuHelper::UnRegAllObjectContextMenu();
+}

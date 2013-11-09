@@ -1,0 +1,14 @@
+【问题】
+在vs中点击资源文件xxx.rc，出现错误“fatal error RC1107”
+
+【原因】
+“包含目录include”中包含"\"，导致rc出现错误
+
+【参考】
+工具->选项->项目和解决方案->VC++目录，
+把右边的”包含文件“里面的路径的最后面的"\"去掉
+
+例如：
+原来是：${VCInstallDir}include\
+改成：${VCInstallDir}include
+

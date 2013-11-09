@@ -1,0 +1,301 @@
+#include "StdAfx.h"
+#include "IndependentCycle.h"
+
+IndependentCycle::IndependentCycle(Digraph& dg_, NetworkEdgeDataMap& datas_, Digraph::Arc baseEdge_) 
+: dg(dg_), datas(datas_), baseEdge(baseEdge_), bCanDoIterate(true)
+{
+}
+
+Digraph::Arc IndependentCycle::getBaseEdge() const
+{
+	return baseEdge;
+}
+
+void IndependentCycle::addEdge( Digraph::Arc e )
+{
+	if(e == INVALID || e == baseEdge) return;
+	if(path.contains(e)) return;
+
+	path.append(e);
+}
+
+void IndependentCycle::getPath( EdgeArray& p )
+{
+	p.append(path);
+}
+
+void IndependentCycle::init()
+{
+	// 计算方向系数
+	initDirection();
+
+	// 判断回路能否进行迭代???
+	bCanDoIterate = canDoIterate();
+}
+
+void IndependentCycle::initDirection()
+{
+	if(path.isEmpty()) return;
+
+	Digraph::Node u = dg.target(baseEdge);
+	short d = 1;  // 以基准分支方向为正方向
+
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		Digraph::Arc e = path[i];
+		Digraph::Node s = dg.source(e);
+		Digraph::Node t = dg.target(e);
+		if(d>0)
+		{
+			if(s != u)
+			{
+				d = -1*d;
+				u = s;
+			}
+			else
+			{
+				u = t;
+			}			
+		}
+		else
+		{
+			if(t != u)
+			{
+				d = -1*d;
+				u = t;
+			}
+			else
+			{
+				u = s;
+			}
+		}
+		c.append(d);
+	}
+}
+
+bool IndependentCycle::isFixQCycle()
+{
+	return datas[getBaseEdge()]->isFixedEdge();
+}
+
+bool IndependentCycle::hasExtraF()
+{
+	// 检查回路中是否存在附加阻力(风机)
+	bool hasFan = false;
+
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		Digraph::Arc e = path[i];
+
+		// 分支上有附加阻力(风机)
+		if(datas[e]->isValidFanEdge())
+		{
+			hasFan = true;
+		}
+		//else
+		//{
+		//	// 其它的情况，例如自然风压，火风压等等
+		//	// ???可能不太正确
+		//	// ...
+		//}
+		if(hasFan) break;
+	}
+
+	return hasFan;
+}
+
+bool IndependentCycle::canDoIterate()
+{
+	if(isFixQCycle()) return false;
+
+	// 1) 固定风量分支作为基准分支的回路, 则不参与迭代计算
+	if(datas[getBaseEdge()]->isFixedEdge()) return false;
+
+	// 2) 如果基准分支是大气分支, 且不包含附加阻力, 则不参与迭代计算
+	if(datas[getBaseEdge()]->isVirtualAirEdge() && !hasExtraF()) return false;
+
+	return true;
+}
+
+double IndependentCycle::h0() const
+{
+	double s = h0(baseEdge);
+
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		Digraph::Arc e = path[i];
+		s += h0(e)*c[i];
+	}
+
+	return s;
+}
+
+double IndependentCycle::h1() const
+{
+	double s = h1(baseEdge);;
+
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		Digraph::Arc e = path[i];
+		s += h1(e)*c[i];
+	}
+
+	return s;
+}
+
+double IndependentCycle::f0() const
+{
+	double s = f0(baseEdge);
+
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		s += c[i]*f0(path[i]);
+	}
+	return s;
+}
+
+double IndependentCycle::f1() const
+{
+	// 一定要记住：基准分支也要参与计算
+	// f1()方法的返回值始终>=0
+	double s = f1(baseEdge);
+
+	// 回路中的其它分支计算阻力1阶导数的绝对值之和
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		s += abs(c[i])*f1(path[i]);
+	}
+	return s;
+}
+
+double IndependentCycle::f0( Digraph::Arc e ) const
+{
+	return datas[e]->edgeResistance_0();
+}
+
+double IndependentCycle::f1( Digraph::Arc e ) const
+{
+	return datas[e]->edgeResistance_1();
+}
+
+double IndependentCycle::h0( Digraph::Arc e ) const
+{
+	return datas[e]->fanPressure_0();
+}
+
+double IndependentCycle::h1( Digraph::Arc e ) const
+{
+	return datas[e]->fanPressure_1();
+}
+
+double IndependentCycle::deltaQ() const
+{
+	// 风机动力方向与方向系数c有关
+	// sq - c*hf
+	// sq表示回路分支阻力代数和，hf表示风机动力(根据特性曲线计算出来的)
+	// 而风机分支始终是余枝，也即c=1
+	double F0 = f0();
+	double H0 = h0();
+	double F1 = f1();
+	double H1 = h1();
+
+	acutPrintf(_T("\n修正前：F0=%.3f, H0=%.3f, F1=%.3f, H1=%.3f\n"), F0, H0, F1, H1);
+
+	return -1.0*(F0-H0)/(F1-H1);
+}
+
+void IndependentCycle::printMsg()
+{
+	acutPrintf(_T("\n"));
+	printEdge(baseEdge);
+
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		printEdge(path[i]);
+	}
+}
+
+void IndependentCycle::printEdge( Digraph::Arc e )
+{
+	acutPrintf(_T("e%d-->"), Digraph::id(e));
+}
+
+void IndependentCycle::printQMsg(const CString& msg)
+{
+	acutPrintf(_T("\n-----------------%s--------------------"), msg);
+
+	acutPrintf(_T("\ne%d\t"), Digraph::id(baseEdge));
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		acutPrintf(_T("e%d\t"), Digraph::id(path[i]));
+	}
+
+	acutPrintf(_T("\n%.3f\t"), datas[baseEdge]->q);
+	for(int i=0;i<len;i++)
+	{
+		acutPrintf(_T("%.3f\t"), datas[path[i]]->q);
+	}
+
+	double F0 = f0();
+	double H0 = h0();
+	double F1 = f1();
+	double H1 = h1();
+
+	acutPrintf(_T("\n\nF0=%.5f, H0=%.5f, F1=%.5f, H1=%.5f"), F0, H0, F1, H1);
+
+	acutPrintf(_T("\n------------------------------------------\n"));
+}
+
+void IndependentCycle::iterate(double& delta_q, double& delta_f)
+{
+	delta_q = 0; delta_f = 0;
+
+	// 回路不参与迭代计算
+	if(!bCanDoIterate)
+	{
+		acutPrintf(_T("\n回路C(e%d)不参与迭代计算\n"), dg.id(getBaseEdge()));
+		return;
+	}
+
+	//printQMsg(_T("修正前"));
+
+	// 返回==>回路的风量修正量
+	delta_q = deltaQ();
+
+	// 基准分支修正风量
+	datas[getBaseEdge()]->increase(delta_q);
+
+	// 回路中的其它分支修正风量
+	int len = path.length();
+	for(int i=0;i<len;i++)
+	{
+		Digraph::Arc e = path[i];
+		datas[e]->increase(c[i]*delta_q);   // 修正风量
+	}
+
+	// 返回==>回路阻力代数和
+	delta_f = f0()-h0();
+
+	acutPrintf(_T("\n---回路C(e%d)风量修正量:%.5f, 修正后--阻力差:%.5f---\n"), dg.id(getBaseEdge()), delta_q, delta_q);
+
+	printQMsg(_T("修正后"));
+}
+
+short IndependentCycle::getCycleCoeff( Digraph::Arc e )
+{
+	if(e==INVALID) return 0;
+	if(e==baseEdge) return 1;
+
+	int pos = path.find(e);
+	if(pos == -1) return 0;
+
+	return c[pos];
+}

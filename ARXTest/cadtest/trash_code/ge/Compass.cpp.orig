@@ -1,0 +1,93 @@
+#include "StdAfx.h"
+#include "Compass.h"
+
+Adesk::UInt32 Compass::kCurrentVersionNumber =1 ;
+
+ACRX_DXF_DEFINE_MEMBERS (
+	Compass, MineGE,
+	AcDb::kDHL_CURRENT, AcDb::kMReleaseCurrent, 
+	AcDbProxyEntity::kNoOperation,
+	COMPASS, DEFGEAPP
+)
+
+Compass::Compass () : MineGE () {
+}
+
+Compass::Compass( const AcGePoint3d& insertPt, double angle ) : MineGE(), m_insertPt(insertPt), m_angle(angle)
+{
+
+}
+
+Compass::~Compass () {
+}
+
+AcGePoint3d Compass::getInsertPt() const
+{
+	assertReadEnabled();
+	return m_insertPt;
+}
+
+void Compass::setInsertPt( const AcGePoint3d& pt )
+{
+	assertWriteEnabled();
+	m_insertPt = pt;
+}
+
+double Compass::getDirectionAngle() const
+{
+	assertReadEnabled();
+	return m_angle;
+}
+
+void Compass::setDirectionAngle( double angle )
+{
+	assertWriteEnabled();
+	m_angle = angle;
+}
+
+void Compass::pullKeyParamFromReader( DrawParamReader& reader )
+{
+	reader.readPoint(m_insertPt);
+	reader.readDouble(m_angle);
+}
+
+void Compass::pushKeyParamToWriter( DrawParamWriter& writer ) const
+{
+	writer.writePoint(m_insertPt);
+	writer.writeDouble(m_angle);
+}
+
+Acad::ErrorStatus Compass::dwgOutFields (AcDbDwgFiler *pFiler) const {
+	assertReadEnabled () ;
+	//----- Save parent class information first.
+	Acad::ErrorStatus es =MineGE::dwgOutFields (pFiler) ;
+	if ( es != Acad::eOk )
+		return (es) ;
+	//----- Object version number needs to be saved first
+	if ( (es =pFiler->writeUInt32 (Compass::kCurrentVersionNumber)) != Acad::eOk )
+		return (es) ;
+
+	pFiler->writeItem(m_insertPt);
+	pFiler->writeItem(m_angle);
+
+	return (pFiler->filerStatus ());
+}
+
+Acad::ErrorStatus Compass::dwgInFields (AcDbDwgFiler *pFiler) {
+	assertWriteEnabled () ;
+	//----- Read parent class information first.
+	Acad::ErrorStatus es =MineGE::dwgInFields (pFiler) ;
+	if ( es != Acad::eOk )
+		return (es) ;
+	//----- Object version number needs to be read first
+	Adesk::UInt32 version =0 ;
+	if ( (es =pFiler->readUInt32 (&version)) != Acad::eOk )
+		return (es) ;
+	if ( version > Compass::kCurrentVersionNumber )
+		return (Acad::eMakeMeProxy) ;
+
+	pFiler->readItem(&m_insertPt);
+	pFiler->readItem(&m_angle);
+
+	return (pFiler->filerStatus ()) ;
+}

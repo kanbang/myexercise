@@ -1,0 +1,393 @@
+#include "StdAfx.h"
+
+#include "DoubleLine.h"
+
+#include "../FFC_GE/Goaf.h"
+#include "../FFC_GE/Obturation.h"
+#include "../FFC_GE/AirLeak.h"
+#include "../FFC_GE/GasPipe.h"
+#include "../FFC_GE/NitrogenPipe.h"
+
+#include "../MineGE/HelperClass.h"
+
+/* 全局函数(GeoTool.cpp) */
+extern int FindPointOnPolygon(const AcGePoint3d& pt, const AcGePoint3dArray& polygon);
+
+// 查找图元对应的宿主对象
+// 主要用于查找密闭关联的巷道
+void GetHosts(const AcDbObjectIdArray& objIds, AcDbObjectIdArray& hosts)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	if(pTrans == 0) return;
+
+	int len = objIds.length();
+	for(int i=0;i<len;i++)
+	{
+		AcDbObject* pObj;
+		if(Acad::eOk != pTrans->getObject(pObj, objIds[i], AcDb::kForRead)) continue;		
+
+		TagGE* pTag = TagGE::cast(pObj);
+		if(pTag == 0) continue;		
+
+		AcDbObjectId host = pTag->getRelatedGE();
+		if(!host.isNull()) hosts.append(host);
+	}
+	actrTransactionManager->endTransaction();
+}
+
+void FindAllLines(AcDbObjectIdArray& objIds)
+{
+	// 查找所有的巷道、工作面
+	DrawHelper::FindMineGEs(_T("LinkedGE"), objIds);
+}
+
+// 查找所有的采空区
+void FindAllGoafs(AcDbObjectIdArray& objIds)
+{
+	DrawHelper::FindMineGEs(_T("Goaf"), objIds);
+}
+
+void FindAllObturations(AcDbObjectIdArray& objIds)
+{
+	// 查找所有的密闭
+	DrawHelper::FindMineGEs(_T("Obturation"), objIds);
+}
+
+void FindAllAirLeaks(AcDbObjectIdArray& objIds)
+{
+	DrawHelper::FindMineGEs(_T("AirLeak"), objIds);
+}
+
+void FindAllGasPipes(AcDbObjectIdArray& objIds)
+{
+	DrawHelper::FindMineGEs(_T("GasPipe"), objIds);
+}
+
+void FindAllNitrogenPipes(AcDbObjectIdArray& objIds)
+{
+	DrawHelper::FindMineGEs(_T("NitrogenPipe"), objIds);
+}
+
+void GetAirLeakPoints(AcDbObjectIdArray& objIds, AcGePoint3dArray& pts)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	if(pTrans == 0) return;
+
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcDbObject* pObj;
+		if(Acad::eOk == pTrans->getObject(pObj, objIds[i], AcDb::kForRead))
+		{
+			AirLeak* pAriLeak = AirLeak::cast(pObj);
+			if(pAriLeak != 0)
+			{
+				pts.append(pAriLeak->getInsertPt());
+			}
+		}
+	}
+	
+	actrTransactionManager->endTransaction();
+}
+
+
+void GetGasPipePoints(AcDbObjectIdArray& objIds, AcGePoint3dArray& pts)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	if(pTrans == 0) return;
+
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcDbObject* pObj;
+		if(Acad::eOk == pTrans->getObject(pObj, objIds[i], AcDb::kForRead))
+		{
+			GasPipe* pGasPipe = GasPipe::cast(pObj);
+			if(pGasPipe != 0)
+			{
+				AcGePoint3d spt, ept;
+				pGasPipe->getSEPoint(spt, ept);
+
+				pts.append(ept);
+			}
+		}
+	}
+
+	actrTransactionManager->endTransaction();
+}
+
+void GetNitrogenPipePoints(AcDbObjectIdArray& objIds, AcGePoint3dArray& pts)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	if(pTrans == 0) return;
+
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcDbObject* pObj;
+		if(Acad::eOk == pTrans->getObject(pObj, objIds[i], AcDb::kForRead))
+		{
+			NitrogenPipe* pNitrogenPipe = NitrogenPipe::cast(pObj);
+			if(pNitrogenPipe != 0)
+			{
+				pts.append(pNitrogenPipe->getInsertPt());
+			}
+		}
+	}
+
+	actrTransactionManager->endTransaction();
+}
+
+// 获取采空区多边形
+void GetGoafPolygon(const AcDbObjectId& objId, AcGePoint3dArray& polygon)
+{
+	AcTransaction* pTrans = actrTransactionManager->startTransaction();
+	if(pTrans == 0) return;
+
+	AcDbObject* pObj;
+	if(Acad::eOk == pTrans->getObject(pObj, objId, AcDb::kForRead))
+	{
+		Goaf* pGoaf = Goaf::cast(pObj);
+		if(pGoaf != 0)
+		{
+			pGoaf->getPolygon(polygon);
+		}
+	}
+
+	actrTransactionManager->endTransaction();
+}
+
+// 查找所有工作面的端点坐标
+static void GetWSLinePoints(const AcDbVoidPtrArray& lines, AcGePoint3dArray& pts)
+{
+	for(int i=0;i<lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)lines[i];
+		if(pLine->isWorkSurface())
+		{
+			AcGePoint3d spt, ept;
+			pLine->getSEPoint(spt, ept);
+			/*if(!pts.contains(spt)) */pts.append(spt);
+			/*if(!pts.contains(ept)) */pts.append(ept);
+		}
+	}
+}
+
+static void GetGoafPoints(const AcDbObjectIdArray& objIds, AcGePoint3dArray& pts)
+{
+	AcGePoint3dArray goaf_pts;
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcGePoint3dArray polygon;
+		GetGoafPolygon(objIds[i], polygon);
+		for(int j=0;j<polygon.length();j++)
+		{
+			pts.append(polygon[j]);
+		}
+	}
+}
+
+// 建立直线与工作面的关系
+//	0) 与工作面不关联
+//	1) 一个点与工作面关联
+//		+1/-1分别表示始点或末点与工作面关联
+//	2) 两点都在工作面上
+void BuildWSRelation(const AcDbVoidPtrArray& lines, AcDbIntArray& ws_relation)
+{
+	// 查找所有的工作面端点坐标
+	AcGePoint3dArray ws_pts;
+	GetWSLinePoints(lines, ws_pts);
+
+	for(int i=0;i<lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)lines[i];
+
+		AcGePoint3d spt, ept;
+		pLine->getSEPoint(spt, ept);
+
+		bool b1 = ws_pts.contains(spt);
+		bool b2 = ws_pts.contains(ept);
+
+		int pr = 0;
+		if(b1 && b2)
+		{
+			pr = 2;
+		}
+		else if(b1)
+		{
+			pr = 1;
+		}
+		else if(b2)
+		{
+			pr = -1;
+		}
+		ws_relation.append(pr);
+	}
+}
+
+// 直线与采空区的关系
+//	0) 两个端点不在采空区上
+//	1) 一个端点在采空区上，另外一个在采空区外
+//     注：+1/-1分别始点spt或末点ept在采空区上
+//	2) 两个端点在采空区的一条边上
+//     注：+2/-2分别表示两个端点在一条边上或在两条边上
+static int LinePosInGoaf(const AcDbObjectIdArray& objIds, const AcGePoint3d& spt, const AcGePoint3d& ept)
+{
+	int pos = 0;
+	for(int i=0;i<objIds.length();i++)
+	{
+		AcGePoint3dArray polygon;
+		GetGoafPolygon(objIds[i], polygon);
+		int pos1 = FindPointOnPolygon(spt, polygon);
+		int pos2 = FindPointOnPolygon(ept, polygon);
+		if(pos1 == -1 && pos2 == -1) continue;
+		
+		// FindPointOnPolygon返回点在多边形上的分支编号
+		// 如果两点在一条边上, 则编号相差1或者n-1
+		int d = abs(pos1-pos2);
+
+		if(pos1 == -1)
+		{
+			pos = -1;
+		}
+		else if(pos2 == -1)
+		{
+			pos = 1;
+		}
+		else if(d == 1 || (polygon.length()-d) == 1)
+		{
+			pos = 2;
+		}
+		else
+		{
+			pos = -2;
+		}
+
+		break;
+	}
+	return pos;
+}
+
+// 直线与采空区的关系
+//	0) 两个端点不在采空区上
+//	1) 一个端点在采空区上，另外一个在采空区外
+//     注：+1/-1分别始点spt或末点ept在采空区上
+//	2) 两个端点在采空区的一条边上
+//     注：+2/-2分别表示两个端点在一条边上或在两条边上
+void BuildGoafRelation(const AcDbVoidPtrArray& lines, AcDbIntArray& goaf_relation)
+{
+	// 查找所有的采空区
+	AcDbObjectIdArray goaf_objIds;
+	FindAllGoafs(goaf_objIds);
+
+	AcGePoint3dArray goaf_pts;
+	GetGoafPoints(goaf_objIds, goaf_pts);
+
+	for(int i=0;i<lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)lines[i];
+
+		AcGePoint3d spt, ept;
+		pLine->getSEPoint(spt, ept);
+
+		goaf_relation.append(LinePosInGoaf(goaf_objIds, spt, ept));
+	}
+}
+
+// 移除与工作面和采空区没有关联的巷道
+void RemoveUnrelatedLines(AcDbObjectIdArray& objIds, AcDbVoidPtrArray& lines, 
+						  const AcDbIntArray& ws_relation, const AcDbIntArray& goaf_relation)
+{
+	int n = lines.length();
+	for(int i=0;i<n;i++)
+	{
+		if(ws_relation[i] == 0 && goaf_relation[i] == 0)
+		{
+			delete (DoubleLine*)lines[i];
+			lines[i] = 0;
+			objIds[i].setNull();  // objIds[i] = AcDbObjectId::kNull;
+		}
+	}
+}
+
+// 查找采空区上的点源
+void FindPointSourceOnGoaf(AcDbObjectIdArray& objIds, AcDbVoidPtrArray& lines, 
+					 const AcDbIntArray& ws_relation, const AcDbIntArray& goaf_relation,
+					 AcDbObjectIdArray& ob_objIds, AcGePoint3dArray& ob_pts, AcDbIntArray& ob_types)
+{
+	// 查找所有的密闭
+	AcDbObjectIdArray all_ob_objIds;
+	FindAllObturations(all_ob_objIds);
+
+	// 查找密闭关联的巷道
+	AcDbObjectIdArray hosts;
+	GetHosts(all_ob_objIds, hosts);
+
+	for(int i=0;i<lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)lines[i];
+		if(pLine == 0) continue;
+
+		acutPrintf(_T("\nws[%d]=%d, goaf[%d]=%d"), i, ws_relation[i], i, goaf_relation[i]);
+
+		// 工作面巷道
+		if(ws_relation[i] == 2) continue;
+		// 巷道的一个端点与工作面关联且两点没有全部落在采空区
+		if(ws_relation[i] != 0 && goaf_relation[i] != 2) continue;
+		// 直线在采空区的一条边上，且没有密闭
+		if(goaf_relation[i] == 2 && !hosts.contains(objIds[i])) continue;
+
+		// 一个端点在采空区上，另外一个端点在采空区外
+		if(goaf_relation[i] == 1 || goaf_relation[i] == -1)
+		{
+			AcGePoint3d spt, ept;
+			pLine->getSEPoint(spt, ept);
+
+			// goaf_relation[i] = 1表示始点落在采空区上，向采空区外漏风
+			// goaf_relation[i] = -1表示末点落在采空区上，向采空区内漏风
+			ob_pts.append((goaf_relation[i]==1)?spt:ept);
+			ob_objIds.append(objIds[i]);
+			ob_types.append(goaf_relation[i]);
+		}
+
+		delete (DoubleLine*)lines[i];
+		lines[i] = 0;
+		objIds[i].setNull();
+	}
+}
+
+// 找出工作面推进方向的巷道，并截断一定长度
+void TruncateLines(const AcDbVoidPtrArray& lines, double trlen, const AcDbIntArray& ws_relation, const AcDbIntArray& goaf_relation)
+{
+	// 查找所有与工作面相连
+	// 且另外的一个端点没有落在采空区上的巷道
+	// 即ws_relation[i] == goaf_relation[i] == 1或-1
+	for(int i=0;i<lines.length();i++)
+	{
+		DoubleLine* pLine = (DoubleLine*)lines[i];
+		if(pLine == 0) continue;
+		if(pLine->isWorkSurface()) continue;
+
+		if(abs(ws_relation[i]) == 1 && 
+		   goaf_relation[i] == ws_relation[i])
+		{
+			acutPrintf(_T("\n第%d条巷道被截断"), i);
+
+			AcGePoint3d spt, ept;
+			pLine->getSEPoint(spt, ept);
+		
+			// 截断该巷道
+			AcGeVector3d v = ept - spt;
+			if(v.length() < trlen) continue;
+
+			v.normalize();
+			if(ws_relation[i] == 1)
+			{
+				// 始点在工作面上
+				pLine->setEndPoint(spt+v*trlen);
+			}
+			else
+			{
+				// 末点在工作面
+				pLine->setStartPoint(ept-v*trlen);
+			}
+		}
+	}
+}

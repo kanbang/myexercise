@@ -1,0 +1,26 @@
+1、ARXTest
+AutoCAD2010+ObjectARX2010 开发的代码
+主要项目是cadtest，该文件夹中的其它代码因为项目的需要复制粘贴cadtest项目中的多数代码，且又修改了一部分，但并未完全合并到cadtest项目中
+
+2、CppTest
+各种C++测试代码
+
+3、CsTest
+C#代码
+目前只有一个GrahvizDraw项目，通过Graphviz软件将通风网络拓扑数据绘制成图片
+
+4、gvTest
+通过Grahviz软件将通风网络拓扑数据绘制成图片，包括C++和C#代码，包含部分测试数据，以及自动运行的批处理文件（bat文件）
+
+5、matlabTest
+以前帮别人的论文写的关于通风网络算法的matlab代码
+
+6、OsgTest
+osg测试代码
+
+7、pythonTest
+用python语言编写的几个小工具，主要是将Mvss导出的txt文件进行处理
+
+8、QtTest
+qt测试代码
+

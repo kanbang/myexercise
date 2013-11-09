@@ -1,0 +1,37 @@
+/***************************************************************************
+ *   Copyright (C) 2008 by tyler shaub   *
+ *   tyler.shaub@gmail.com   *
+ *                                                                         *
+ *   See COPYING	*
+ ***************************************************************************/
+
+#include "DynamicType.hpp"
+
+#include "TypeManagerHelpers.hpp"
+#include "TypeInfo.hpp"
+
+namespace Flex_
+{
+
+    DynamicType::DynamicType() : dynTypeId(INVALID_TYPE)
+    {
+    }
+
+    DynamicType::~DynamicType()
+    {
+    }
+
+    void DynamicType::SetType(TypeId id)
+    {
+        assert(dynTypeId == INVALID_TYPE); // changing type id does not make sense
+        dynTypeId = id;
+    }
+
+    TypeId DynamicType::GetType() const
+    {
+        return dynTypeId;
+    }
+
+}
+
+

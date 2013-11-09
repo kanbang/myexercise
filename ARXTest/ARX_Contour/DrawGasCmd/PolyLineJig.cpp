@@ -1,0 +1,371 @@
+#include "StdAfx.h"
+#include "PolyLineJig.h"
+
+#include "../ArxHelper/HelperClass.h"
+
+static AcGePoint2d Point3D_To_2D( const AcGePoint3d& pt )
+{
+    return AcGePoint2d( pt.x, pt.y );
+}
+
+static AcGePoint3d Point2D_To_3D( const AcGePoint2d& pt )
+{
+    return AcGePoint3d( pt.x, pt.y, 0 );
+}
+
+/*
+ * 目前的jig实现闪烁十分严重，
+ * 后续可以参见<<ObjectARX开发实例教程-20090826>>中的"5.2.2 动态创建多段线"的代码
+ */
+
+/*
+ * 动态选择一个多边形区域
+ * 该多边形可能是合理的，也可能不是合理的
+ * 只需要能够表示一个区域即可
+ */
+class PolyLineJig : public AcEdJig
+{
+public:
+    PolyLineJig () ;
+    ~PolyLineJig () ;
+
+    Adesk::Boolean doJig( AcGePoint3dArray& pts );
+
+protected:
+    virtual DragStatus sampler () ;
+    virtual Adesk::Boolean update () ;
+    virtual AcDbEntity* entity () const ;
+
+private:
+    void getAllPoints( AcGePoint3dArray& pts );
+    void addPoint( const AcGePoint3d& pt );
+    void setPoint( const AcGePoint3d& pt );
+    void getLastPoint( AcGePoint3d& pt );
+    AcEdJig::DragStatus getNextPoint();
+    AcDbPolyline* pPolyLine;
+    AcGePoint3d cpt;
+    int num;
+} ;
+
+PolyLineJig::PolyLineJig () : AcEdJig (), pPolyLine( 0 )
+{
+}
+
+PolyLineJig::~PolyLineJig ()
+{
+}
+
+void PolyLineJig::addPoint( const AcGePoint3d& pt )
+{
+    pPolyLine->addVertexAt( num, Point3D_To_2D( pt ) );
+}
+
+void PolyLineJig::setPoint( const AcGePoint3d& pt )
+{
+    pPolyLine->setPointAt( num, Point3D_To_2D( pt ) );
+}
+
+void PolyLineJig::getLastPoint( AcGePoint3d& pt )
+{
+    //if(pPolyLine->numVerts() == 1)
+    //{
+    //	pPolyLine->getStartPoint(pt);
+    //}
+    //else
+    //{
+    pPolyLine->getEndPoint( pt );
+    //}
+}
+
+void PolyLineJig::getAllPoints( AcGePoint3dArray& pts )
+{
+    int num = pPolyLine->numVerts();
+    AcGePoint2dArray V;
+    for( int i = 0; i < num; i++ )
+    {
+        AcGePoint2d pt;
+        pPolyLine->getPointAt( i, pt );
+        pts.append( Point2D_To_3D( pt ) );
+    }
+}
+
+Adesk::Boolean PolyLineJig::doJig( AcGePoint3dArray& pts )
+{
+    pPolyLine = new AcDbPolyline();
+
+    setUserInputControls( ( UserInputControls )( kDontUpdateLastPoint | kNullResponseAccepted ) );
+
+    // 获取第1个点
+    setDispPrompt( _T( "\n请添加边界点: " ) );
+    AcGePoint3d pt;
+    DragStatus stat = acquirePoint( pt );
+    if ( stat != kNormal )
+    {
+        delete pPolyLine;
+        pPolyLine = 0;
+        return Adesk::kFalse;
+    }
+
+    num = 0;
+    addPoint( pt );
+    cpt = pt;
+
+    // 按空格结束(返回kNull)
+    while( 1 )
+    {
+        setDispPrompt( _T( "\n继续添加边界点: " ) );
+        //acutPrintf(_T("\n调用drag()前...."));
+
+        addPoint( cpt );
+        num++;
+
+        stat = drag();
+        //acutPrintf(_T("\n调用drag()后****"));
+        //acutPrintf(_T("status:%d"), stat);
+        if( stat != kNormal ) break;
+    }
+    pPolyLine->removeVertexAt( num ); // 删除最后一个节点(注意!!!)
+    //acutPrintf(_T("status:%d"), stat);
+    bool ret = false;
+    if( stat == kNull )
+    {
+        ret = true;
+        getAllPoints( pts );
+    }
+    delete pPolyLine;
+    pPolyLine = 0;
+
+    return ret;
+}
+
+AcEdJig::DragStatus PolyLineJig::sampler()
+{
+    //acutPrintf(_T("\n调用sampler()"));
+    return getNextPoint();
+}
+
+Adesk::Boolean PolyLineJig::update()
+{
+    //num == pPolyLine->numVerts();
+    //acutPrintf(_T("\n调用update()\t当点节点个数:%d"), num+1);
+    setPoint( cpt );
+    return Adesk::kTrue;
+}
+
+AcDbEntity* PolyLineJig::entity () const
+{
+    //acutPrintf(_T("\n调用entity()"));
+    return pPolyLine;
+}
+
+AcEdJig::DragStatus PolyLineJig::getNextPoint()
+{
+    setUserInputControls( ( UserInputControls )( kDontUpdateLastPoint | kNullResponseAccepted ) );
+
+    AcGePoint3d lastPt;
+    getLastPoint( lastPt );
+
+    AcGePoint3d pt;
+    AcEdJig::DragStatus stat = acquirePoint( pt, lastPt );
+    //acutPrintf(_T("\nstatus:%d"), stat);
+
+    if( stat != kNormal ) return stat;
+
+    if( pt == lastPt )
+    {
+        stat = kNoChange;
+    }
+    else
+    {
+        cpt = pt;
+    }
+    return stat;
+}
+
+static AcDbObjectId CreatePolyLine()
+{
+    int index = 2;       // 当前输入点的次数
+    ads_point ptStart;   // 起点
+    if ( acedGetPoint( NULL, _T( "\n输入第一点：" ), ptStart ) != RTNORM )
+        return AcDbObjectId::kNull;
+
+    ads_point ptPrevious, ptCurrent; // 前一个参考点，当前拾取的点
+    acdbPointSet( ptStart, ptPrevious );
+    AcDbObjectId polyId;             // 多段线的ID
+    while( RTNORM == acedGetPoint( ptPrevious, _T( "\n输入下一点：" ), ptCurrent ) )
+    {
+        if ( index == 2 )
+        {
+            // 创建多段线
+            AcDbPolyline* pPoly = new AcDbPolyline( 2 );
+            AcGePoint2d ptGe1, ptGe2; // 两个节点
+            ptGe1[X] = ptPrevious[X];
+            ptGe1[Y] = ptPrevious[Y];
+            ptGe2[X] = ptCurrent[X];
+            ptGe2[Y] = ptCurrent[Y];
+            pPoly->addVertexAt( 0, ptGe1 );
+            pPoly->addVertexAt( 1, ptGe2 );
+
+            // 添加到模型空间
+            ArxUtilHelper::PostToModelSpace( pPoly );
+
+            polyId = pPoly->objectId();
+        }
+        else if( index > 2 )
+        {
+            // 修改多段线，添加最后一个顶点
+            AcDbPolyline* pPoly;
+            acdbOpenObject( pPoly, polyId, AcDb::kForWrite );
+
+            AcGePoint2d ptGe;    // 增加的节点
+            ptGe[X] = ptCurrent[X];
+            ptGe[Y] = ptCurrent[Y];
+
+            pPoly->addVertexAt( index - 1, ptGe );
+
+            pPoly->close();
+        }
+
+        index++;
+
+        acdbPointSet( ptCurrent, ptPrevious );
+    }
+
+    return polyId;
+}
+
+static void GetPolyPoints( const AcDbObjectId& objId, AcGePoint3dArray& pts )
+{
+    AcDbEntity* pEnt;
+    acdbOpenObject( pEnt, objId, AcDb::kForRead );
+
+    AcDbPolyline* pPolyLine = AcDbPolyline::cast( pEnt );
+    int n = pPolyLine->numVerts();
+    acutPrintf( _T( "\n多边形的点个数:%d" ), n );
+    for( int i = 0; i < n; i++ )
+    {
+        AcGePoint3d pt;
+        pPolyLine->getPointAt( i, pt );
+        pts.append( pt );
+    }
+    pEnt->close();
+}
+
+bool GetPolygonByJig( AcGePoint3dArray& pts )
+{
+    PolyLineJig jig;
+    return jig.doJig( pts );
+}
+
+bool GetPolygonByCmd( AcGePoint3dArray& pts )
+{
+    // 命令行交互创建多段线
+    AcDbObjectId objId = CreatePolyLine();
+    if( objId.isNull() ) return false;
+
+    // 获取多段线点
+    GetPolyPoints( objId, pts );
+
+    // 删除多段线
+    ArxEntityHelper::EraseObject2( objId, true );
+
+    return true;
+}
+
+
+/*
+
+// 与PolyLineJig.h中的GetPolygonByCmd()的实现类似
+class PolyLineJig : public AcEdJig
+{
+public:
+	PolyLineJig () ;
+	~PolyLineJig () ;
+
+	Adesk::Boolean doJig(AcGePoint3dArray& polygon);
+} ;
+
+static AcGePoint2d Point3D_To_2D(const AcGePoint3d& pt)
+{
+	return AcGePoint2d(pt.x, pt.y);
+}
+
+static AcGePoint3d Point2D_To_3D(const AcGePoint2d& pt)
+{
+	return AcGePoint3d(pt.x, pt.y, 0);
+}
+
+PolyLineJig::PolyLineJig () : AcEdJig ()
+{
+}
+
+PolyLineJig::~PolyLineJig () {
+}
+
+Adesk::Boolean PolyLineJig::doJig(AcGePoint3dArray& polygon)
+{
+	setUserInputControls((UserInputControls)(kNullResponseAccepted));
+
+	setDispPrompt(_T("\n请添加边界点: "));
+	AcGePoint3d pt;
+	if(kNormal != acquirePoint(pt)) return Adesk::kFalse;
+
+	// 获取第1个点
+	polygon.append(pt);
+
+	Adesk::Boolean ret = Adesk::kTrue;
+	AcDbObjectId objId;
+	while(ret)
+	{
+		setUserInputControls((UserInputControls)(kNullResponseAccepted));
+
+		setDispPrompt(_T("\n请添加边界点[或按空格/ESC退出]: "));
+		AcGePoint3d next_pt;
+		if(kNormal != acquirePoint(next_pt, pt)) break;
+
+		if(polygon.contains(next_pt))
+		{
+			setDispPrompt(_T("\n不允许添加重复点"));
+			continue;
+		}
+
+		polygon.append(next_pt);
+		pt = next_pt;
+		if(polygon.length()==2)
+		{
+			AcDbPolyline* pPolyLine = new AcDbPolyline(2);
+			pPolyLine->addVertexAt(0, Point3D_To_2D(polygon[0]));
+			pPolyLine->addVertexAt(1, Point3D_To_2D(polygon[1]));
+			if(!ArxUtilHelper::PostToModelSpace(pPolyLine))
+			{
+				delete pPolyLine;
+				ret = Adesk::kFalse;
+			}
+			else
+			{
+				objId = pPolyLine->objectId();
+			}
+		}
+		else
+		{
+			AcDbEntity* pEnt;
+			if(Acad::eOk != acdbOpenAcDbEntity(pEnt, objId, AcDb::kForWrite))
+			{
+				ret = Adesk::kFalse;
+			}
+			else
+			{
+				AcDbPolyline* pPolyLine = AcDbPolyline::cast(pEnt);
+				pPolyLine->addVertexAt(pPolyLine->numVerts(), Point3D_To_2D(next_pt));
+				pEnt->close();
+			}
+		}
+	}
+
+	if(!objId.isNull()) ArxEntityHelper::EraseObject2(objId, true);
+	if(!ret) polygon.removeAll();
+	if(polygon.length()<3) ret = false;
+
+	return ret;
+}
+*/

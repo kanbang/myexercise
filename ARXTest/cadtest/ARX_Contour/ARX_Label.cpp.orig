@@ -1,0 +1,19 @@
+#include "stdafx.h"
+
+#include "../Contour/Contour.h"
+
+void ARX_Label(const AcGePoint3dArray& pts, AcGePoint3d& tpt, double& angle)
+{
+	PointArray cnpts;
+	for(int i=0;i<pts.length();i++)
+	{
+		DT_Point p = {pts[i].x, pts[i].y, 0};
+		cnpts.push_back(p);
+	}
+
+	// 调用Contour.dll中的光滑算法
+	DT_Point p;
+	SearchLabelPostion(cnpts, p, angle);
+
+	tpt.x = p.x; tpt.y = p.y; tpt.z = 0;
+}

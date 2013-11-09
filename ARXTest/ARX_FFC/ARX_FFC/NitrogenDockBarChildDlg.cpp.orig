@@ -1,0 +1,48 @@
+#include "stdafx.h"
+#include "NitrogenDockBarChildDlg.h"
+
+#include "../MineGE/HelperClass.h"
+
+IMPLEMENT_DYNAMIC(NitrogenDockBarChildDlg, PropertyData_DockBarChildDlg)
+
+NitrogenDockBarChildDlg::NitrogenDockBarChildDlg(CWnd* pParent /*=NULL*/)
+	: PropertyData_DockBarChildDlg(NitrogenDockBarChildDlg::IDD, pParent)
+	, m_n2(_T(""))
+{
+
+}
+
+NitrogenDockBarChildDlg::~NitrogenDockBarChildDlg()
+{
+}
+
+void NitrogenDockBarChildDlg::DoDataExchange(CDataExchange* pDX)
+{
+	PropertyData_DockBarChildDlg::DoDataExchange(pDX);
+	DDX_Text(pDX, IDC_FFC_NITROGEN_Q, m_n2);
+}
+
+
+BEGIN_MESSAGE_MAP(NitrogenDockBarChildDlg, PropertyData_DockBarChildDlg)
+END_MESSAGE_MAP()
+
+BOOL NitrogenDockBarChildDlg::OnInitDialog()
+{
+	PropertyData_DockBarChildDlg::OnInitDialog();
+
+	return TRUE;
+}
+
+void NitrogenDockBarChildDlg::readPropertyData()
+{
+	DataHelper::GetPropertyData(m_objId, _T("×¢µªÁ¿"), m_n2);
+
+	UpdateData(FALSE);
+}
+
+void NitrogenDockBarChildDlg::writePropertyData()
+{
+	UpdateData(TRUE);
+
+	DataHelper::SetPropertyData(m_objId, _T("×¢µªÁ¿"), m_n2);
+}

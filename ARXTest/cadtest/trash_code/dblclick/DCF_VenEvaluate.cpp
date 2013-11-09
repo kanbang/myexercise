@@ -1,0 +1,55 @@
+#include "stdafx.h"
+
+#include "TunnelTypeDockBarChildDlg.h"
+#include "AirFlow_WS_DockBarChildDlg.h"
+#include "AirFlow_TWS_DockBarChildDlg.h"
+#include "RoomDockBarChildDlg.h"
+
+#include "../MineGE/DoubleClickCallBack.h"
+#include "../MineGE/ArxUtilHelper.h"
+
+void DCF_VenEvaluate( const AcDbObjectId& objId )
+{
+    CAcModuleResourceOverride myResources;
+    if( ArxUtilHelper::IsEqualType( _T( "Tunnel" ), objId ) )
+    {
+        TunnelTypeDockBarChildDlg dlg;
+        dlg.m_objId = objId;
+        dlg.DoModal();
+    }
+    else if( ArxUtilHelper::IsEqualType( _T( "WorkSurface" ), objId ) )
+    {
+        AirFlow_WS_DockBarChildDlg dlg;
+        dlg.m_objId = objId;
+        dlg.DoModal();
+    }
+    else if( ArxUtilHelper::IsEqualType( _T( "TTunnel" ), objId ) )
+    {
+        AirFlow_TWS_DockBarChildDlg dlg;
+        dlg.m_objId = objId;
+        dlg.DoModal();
+    }
+    else if( ArxUtilHelper::IsEqualType( _T( "StorageGE" ), objId ) )
+    {
+        ROOM_TYPE rt;
+        if( ArxUtilHelper::IsEqualType( _T( "PowderStorage" ), objId ) )
+        {
+            rt = RT_POWDER;
+        }
+        else if( ArxUtilHelper::IsEqualType( _T( "ChargeRoom" ), objId ) )
+        {
+            rt = RT_CHARGE;
+        }
+        else if( ArxUtilHelper::IsEqualType( _T( "MachineRoom" ), objId ) )
+        {
+            rt = RT_MACHINE;
+        }
+
+        /*RoomDockBarChildDlg dlg;
+        dlg.m_rt = rt;
+        dlg.m_objId = objId;
+        dlg.DoModal();*/
+    }
+}
+
+REG_DOUBLE_CLICK_FUNC( DCF_VenEvaluate )

@@ -1,0 +1,52 @@
+digraph abstract {
+	node [color=bisque2,style = filled];
+
+	test_vno[color=cadetblue1];
+	test_vnf[color=cadetblue1];
+	test_vng[color=cadetblue1];
+	test_qt[color=cadetblue1];
+	test_cpi[color=cadetblue1];
+	test_gv[color=cadetblue1];
+	vnr_py[color=cadetblue1];
+
+	vno[color=gold1];
+	vnr[color=gold1];
+	vng[color=gold1];
+	vnf[color=gold1];
+	vnr_mpi[color=gold1];
+
+	mpich2[color=darkorange1];
+	paradiseo[color=darkorange1];
+	graphviz[color=darkorange1];
+	python[color=darkorange1];
+	lemon[color=darkorange1];
+	Qt4[color=darkorange1];
+
+	vno->vnf;
+	vno->lemon
+		vng->lemon;
+	vng->graphviz;
+	vnr->vno;
+	vnr->lemon;
+	vnr->paradiseo;
+	vnr_mpi->vno;
+	vnr_mpi->lemon;
+	vnr_mpi->paradiseo;
+	paradiseo->mpich2;
+
+	test_vnf->vnf;
+	test_vno->vno;
+	test_vno->lemon;
+
+	test_vng->vng;
+	test_vng->lemon;
+	test_vng->graphviz;
+
+	test_gv->graphviz;
+	test_qt->Qt4;
+
+	test_cpi->mpich2;
+	vnr_py->vnr;
+	vnr_py->python;
+	vnr_py->vnr_mpi;
+}

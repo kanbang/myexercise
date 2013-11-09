@@ -1,0 +1,28 @@
+#include "AnyParams.hpp"
+
+#include "AnyPtr.hpp"
+
+namespace Flex_
+{
+
+    AnyPtr const& AnyParams::at(size_t i) const
+    {
+        return params.at(i);
+    }
+
+    void AnyParams::clear()
+    {
+        params.clear();
+    }
+
+    size_t AnyParams::size() const
+    {
+        return params.size();
+    }
+
+    void AnyParams::addParam(AnyPtr const& p)
+    {
+        params.push_back(p);
+    }
+
+}

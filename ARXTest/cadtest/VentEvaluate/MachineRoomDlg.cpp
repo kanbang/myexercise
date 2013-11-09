@@ -1,0 +1,220 @@
+#include "stdafx.h"
+#include "MachineRoomDlg.h"
+
+#include "../MineGE/DataLink.h"
+#include "../MineGE/HelperClass.h"
+#include "../ArxHelper/HelperClass.h"
+
+class MachineDataLink : public DataLink
+{
+protected:
+    virtual void regDatas()
+    {
+        linkIntData( _T( "机电硐室类型" ), &m_hotType );
+        linkDoubleData( _T( "功率" ), &m_power );
+        linkDoubleData( _T( "温度差" ), &m_deltaT );
+        linkDoubleData( _T( "发热系数" ), &m_c );
+    }
+
+public:
+    double m_power;
+    double m_deltaT;
+    int m_hotType;
+    double m_c;
+};
+
+IMPLEMENT_DYNAMIC( MachineRoomDlg, CDialog )
+
+MachineRoomDlg::MachineRoomDlg( CWnd* pParent /*=NULL*/ )
+    : CDialog( MachineRoomDlg::IDD, pParent )
+    , m_hotType( 0 )
+{
+
+}
+
+MachineRoomDlg::~MachineRoomDlg()
+{
+}
+
+void MachineRoomDlg::DoDataExchange( CDataExchange* pDX )
+{
+    CDialog::DoDataExchange( pDX );
+    DDX_Text( pDX, IDC_MACHINE_POWER, m_power );
+    DDX_Text( pDX, IDC_MACHINE_TEMPERATURE, m_deltaT );
+    DDX_Radio( pDX, IDC_MACHINE_RADIO1, m_hotType );
+    DDX_Control( pDX, IDC_MACHINE_SLIDER1, m_hotSlider );
+}
+
+BEGIN_MESSAGE_MAP( MachineRoomDlg, CDialog )
+    ON_BN_CLICKED( IDC_MACHINE_RADIO1, &MachineRoomDlg::OnBnClickedMachineTypeRadio1 )
+    ON_BN_CLICKED( IDC_MACHINE_RADIO2, &MachineRoomDlg::OnBnClickedMachineTypeRadio2 )
+    ON_BN_CLICKED( IDC_MACHINE_RADIO3, &MachineRoomDlg::OnBnClickedMachineTypeRadio3 )
+    ON_BN_CLICKED( IDC_MACHINE_RADIO4, &MachineRoomDlg::OnBnClickedMachineTypeRadio4 )
+    ON_WM_HSCROLL()
+    ON_BN_CLICKED( IDOK, &MachineRoomDlg::OnBnClickedOk )
+END_MESSAGE_MAP()
+
+void MachineRoomDlg::readPropertyData()
+{
+    MachineDataLink dl;
+    dl.setDataSource( m_objId );
+    dl.updateData( false );
+
+    m_hotType = ( dl.m_hotType % 4 );
+    m_power = dl.m_power;
+    m_deltaT = dl.m_deltaT;
+    double c = dl.m_c;
+
+    initHotType( c );
+
+    UpdateData( FALSE );
+}
+
+void MachineRoomDlg::writePropertyData()
+{
+    UpdateData( TRUE );
+
+    MachineDataLink dl;
+    dl.setDataSource( m_objId );
+
+    dl.m_hotType = m_hotType;
+    dl.m_power = m_power;
+    dl.m_deltaT = m_deltaT;
+
+    CString v2;
+    GetDlgItem( IDC_HOT_COEFF1 )->GetWindowText( v2 );
+
+    double c;
+    ArxUtilHelper::StringToDouble( v2, c );
+    dl.m_c = c;
+
+    dl.updateData( true );
+}
+
+void MachineRoomDlg::OnHScroll( UINT nSBCode, UINT nPos, CScrollBar* pScrollBar )
+{
+    switch( pScrollBar->GetDlgCtrlID() )
+    {
+    case IDC_MACHINE_SLIDER1:
+        setCoeffText( m_hotSlider.GetPos() );
+        break;
+    }
+
+    CDialog::OnHScroll( nSBCode, nPos, pScrollBar );
+}
+
+void MachineRoomDlg::OnBnClickedMachineTypeRadio1()
+{
+    recordCoeff();
+    UpdateData( TRUE );
+    updateCoeff( 150, 180, cf1 );
+}
+
+void MachineRoomDlg::OnBnClickedMachineTypeRadio2()
+{
+    recordCoeff();
+    UpdateData( TRUE );
+    updateCoeff( 20, 40, cf2 );
+}
+
+void MachineRoomDlg::OnBnClickedMachineTypeRadio3()
+{
+    recordCoeff();
+    UpdateData( TRUE );
+    updateCoeff( 20, 40, cf3 );
+}
+
+void MachineRoomDlg::OnBnClickedMachineTypeRadio4()
+{
+    recordCoeff();
+    UpdateData( TRUE );
+    updateCoeff( 10, 30, cf4 );
+}
+
+void MachineRoomDlg::initHotType( double c )
+{
+    int pos = ( int )( c * 1000 );
+    if( m_hotType == 0 )
+    {
+        if( pos < 150 || pos > 180 ) pos = 150;
+        updateCoeff( 150, 180, pos );
+        cf1 = pos;
+    }
+    else if( m_hotType == 1 )
+    {
+        if( pos < 20 || pos > 40 ) pos = 20;
+        updateCoeff( 20, 40, pos );
+        cf2 = pos;
+    }
+    else if( m_hotType == 2 )
+    {
+        if( pos < 20 || pos > 40 ) pos = 20;
+        updateCoeff( 20, 40, pos );
+        cf3 = pos;
+    }
+    else if( m_hotType == 3 )
+    {
+        if( pos < 10 || pos > 30 ) pos = 10;
+        updateCoeff( 10, 30, pos );
+        cf4 = pos;
+    }
+}
+
+void MachineRoomDlg::recordCoeff()
+{
+    if( m_hotType == 0 )
+    {
+        cf1 = m_hotSlider.GetPos();
+    }
+    else if( m_hotType == 1 )
+    {
+        cf2 = m_hotSlider.GetPos();
+    }
+    else if( m_hotType == 2 )
+    {
+        cf3 = m_hotSlider.GetPos();
+    }
+    else if( m_hotType == 3 )
+    {
+        cf4 = m_hotSlider.GetPos();
+    }
+}
+
+void MachineRoomDlg::updateCoeff( int minR, int maxR, int v )
+{
+    m_hotSlider.SetRange( minR, maxR, TRUE ); // 0.01 ~ 0.03, 放大1000倍
+    m_hotSlider.SetPos( v );
+    setCoeffText( v );
+}
+
+void MachineRoomDlg::setCoeffText( int pos )
+{
+    CString str;
+    str.Format( _T( "%.3f" ), pos * 0.001 );
+    GetDlgItem( IDC_HOT_COEFF1 )->SetWindowText( str );
+}
+
+void MachineRoomDlg::OnBnClickedOk()
+{
+    writePropertyData();
+
+    OnOK();
+}
+
+BOOL MachineRoomDlg::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+
+    // 恢复控件原始状态
+    m_hotType = 0;
+    m_power = 0;
+    m_deltaT = 0;
+    cf1 = 150;
+    cf2 = 20;
+    cf3 = 20;
+    cf4 = 10;
+
+    readPropertyData();
+
+    return TRUE;
+}

@@ -1,0 +1,27 @@
+MineGE项目中使用了CListCtrlEx，从网上下载的
+网址：http://www.codeproject.com/Articles/28063/An-Extended-MFC-CListCtrl-to-edit-individual-cells
+
+CListCtrlEx代码中的HDF_SORTDOWN只能在高版本的windows系统中使用，因此需要修改相关的版本定义，VC向导生成的版本号偏低
+
+// 使用CListCtrlEx类需要高版本的windows支持
+#ifndef WINVER
+//#define WINVER 0x0400
+#define WINVER 0x0501
+#endif
+
+// 使用CListCtrlEx类需要高版本的windows支持
+#ifndef _WIN32_WINNT
+//#define _WIN32_WINNT 0x0400
+#define _WIN32_WINNT 0x0501
+#endif
+
+#ifndef _WIN32_WINDOWS
+//#define _WIN32_WINDOWS 0x0410
+#define _WIN32_WINDOWS 0x0501
+#endif
+
+// 使用CListCtrlEx类需要高版本的windows支持
+#ifndef _WIN32_IE
+//#define _WIN32_IE 0x0400
+#define _WIN32_IE 0x0600
+#endif

@@ -1,0 +1,159 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// 中文(中华人民共和国) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CHS)
+#ifdef _WIN32
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+#pragma code_page(936)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,1
+ PRODUCTVERSION 1,0,0,1
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "Contour ObjectARX application"
+            VALUE "FileVersion", "1, 0, 0, 1"
+            VALUE "InternalName", "Contour"
+            VALUE "LegalCopyright", "Copyright ?2002"
+            VALUE "OriginalFilename", "Contour.arx"
+            VALUE "ProductName", "Contour Application"
+            VALUE "ProductVersion", "1, 0, 0, 1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_DRAW_CONTOUR_DLG DIALOGEX 0, 0, 241, 68
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "生成瓦斯等值线"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "瓦斯等值线类型",IDC_STATIC,7,7,227,31
+    CONTROL         "瓦斯涌出量",IDC_GFP_RADIO,"Button",BS_AUTORADIOBUTTON | WS_GROUP,17,20,56,10
+    CONTROL         "瓦斯含量",IDC_GCP_RADIO,"Button",BS_AUTORADIOBUTTON,101,20,48,10
+    CONTROL         "瓦斯压力",IDC_GPP_RADIO,"Button",BS_AUTORADIOBUTTON,185,20,48,10
+    LTEXT           "等值线等量差",IDC_STATIC,9,47,49,8
+    EDITTEXT        IDC_CONTOUR_DZ_EDIT,61,43,63,15,ES_AUTOHSCROLL
+    DEFPUSHBUTTON   ">>生成瓦斯等值线",IDOK,136,40,98,21
+END
+
+IDD_CONTOUR_PARAM_DLG DIALOGEX 0, 0, 180, 54
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "设置等值线参数"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "确定",IDOK,19,27,52,19
+    PUSHBUTTON      "取消",IDCANCEL,103,27,52,19
+    LTEXT           "标注字体高度",IDC_STATIC,7,9,49,8
+    EDITTEXT        IDC_CONTOUR_TEXT_HEIGHT,61,7,40,14,ES_AUTOHSCROLL
+    CONTROL         "使用光滑算法",IDC_CONTOUR_SMOOTH,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,109,9,64,10
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_DRAW_CONTOUR_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 234
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 61
+    END
+
+    IDD_CONTOUR_PARAM_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 173
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 47
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_PROJNAME            "Contour"
+END
+
+#endif    // 中文(中华人民共和国) resources
+/////////////////////////////////////////////////////////////////////////////
+
+

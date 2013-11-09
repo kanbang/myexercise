@@ -1,0 +1,51 @@
+#include "StdAfx.h"
+#include "MyDoubleClick2.h"
+
+//-----------------------------------------------------------------------------
+MyDoubleClick2::MyDoubleClick2 (const bool autoInitAndRelease) : AcEditorReactor(), mbAutoInitAndRelease(autoInitAndRelease) {
+	if ( autoInitAndRelease ) {
+		if ( acedEditor )
+			acedEditor->addReactor (this) ;
+		else
+			mbAutoInitAndRelease =false ;
+	}
+}
+
+//-----------------------------------------------------------------------------
+MyDoubleClick2::~MyDoubleClick2 () {
+	Detach () ;
+}
+
+//-----------------------------------------------------------------------------
+void MyDoubleClick2::Attach () {
+	Detach () ;
+	if ( !mbAutoInitAndRelease ) {
+		if ( acedEditor ) {
+			acedEditor->addReactor (this) ;
+			mbAutoInitAndRelease =true ;
+		}
+	}
+}
+
+void MyDoubleClick2::Detach () {
+	if ( mbAutoInitAndRelease ) {
+		if ( acedEditor ) {
+			acedEditor->removeReactor (this) ;
+			mbAutoInitAndRelease =false ;
+		}
+	}
+}
+
+AcEditor *MyDoubleClick2::Subject () const {
+	return (acedEditor) ;
+}
+
+bool MyDoubleClick2::IsAttached () const {
+	return (mbAutoInitAndRelease) ;
+}
+
+void MyDoubleClick2::beginDoubleClick(const AcGePoint3d & clickPoint)
+{
+	AcEditorReactor::beginDoubleClick (clickPoint);
+	AfxMessageBox(_T("µ¯³ö¶Ô»°¿ò2"));
+}

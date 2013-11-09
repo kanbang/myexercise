@@ -1,0 +1,222 @@
+#include "stdafx.h"
+#include "CCListDlg.h"
+
+#include "../MineGE/HelperClass.h"
+#include "../ArxHelper/HelperClass.h"
+
+#include "../VentNetworkAlgo/VNAlgoHelper.h"
+
+IMPLEMENT_DYNAMIC(CCListDlg, CAcUiDialog)
+
+CCListDlg::CCListDlg(CWnd *pParent, HINSTANCE hInstance)
+	: CAcUiDialog(CCListDlg::IDD, pParent, hInstance)
+{
+
+}
+
+CCListDlg::~CCListDlg()
+{
+}
+
+void CCListDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CAcUiDialog::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_CC_LIST, m_list);
+}
+
+
+BEGIN_MESSAGE_MAP(CCListDlg, CAcUiDialog)
+	ON_BN_CLICKED(IDC_CC_LIST_UPDATE_BTN, &CCListDlg::OnBnClickedCCListUpdateBtn)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_CC_LIST, &CCListDlg::OnLvnItemchangedList1)
+END_MESSAGE_MAP()
+
+
+//- Needed for modeless dialogs to keep focus.
+//- Return FALSE to not keep the focus, return TRUE to keep the focus
+LRESULT CCListDlg::OnAcadKeepFocus (WPARAM wParam, LPARAM lParam) {
+	return (TRUE) ;
+}
+
+//- As this dialog is a child dialog we need to disable ok and cancel
+BOOL CCListDlg::OnCommand (WPARAM wParam, LPARAM lParam) {
+	switch ( wParam ) {
+		case IDOK:
+		case IDCANCEL:
+			return (FALSE);
+	}	
+	return (CAcUiDialog::OnCommand (wParam, lParam));
+}
+
+void CCListDlg::OnSize (UINT nType, int cx, int cy) {
+	CAcUiDialog::OnSize (nType, cx, cy) ;
+	//- Now update the dialog
+	MoveWindow(0, 0, cx, cy);
+}
+
+// CCListDlg 消息处理程序
+
+void CCListDlg::OnBnClickedCCListUpdateBtn()
+{
+	// 清空
+	clearAll();
+
+	// 初始化list
+	initTunnelList();
+}
+
+void CCListDlg::OnLvnItemchangedList1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	if(!m_listFinishInitial) return;
+
+	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+
+	if(pNMLV->iItem != -1)
+	{
+		// 锁定当前文档
+		acDocManager->lockDocument(curDoc()); 
+
+		// 第几个图元
+		int row = pNMLV->iItem;
+
+		if(m_lastPos != -1)
+		{
+			int startPos, endPos;
+			findEdgeByCC(m_lastPos, startPos, endPos);
+			for(int i=startPos; i<endPos; i++)
+			{
+				ArxEntityHelper::SetEntityColor(m_objIds[i], m_colors[i]);
+			}
+		}
+
+		// 缩放并用黄颜色高亮显示
+		int startPos, endPos;
+		findEdgeByCC(row, startPos, endPos);
+		AcDbObjectIdArray objIds;
+		for(int i=startPos; i<endPos; i++)
+		{
+			objIds.append(m_objIds[i]);
+		}
+		ArxEntityHelper::ZoomToEntities(objIds);
+		ArxEntityHelper::SetEntitiesColor(objIds, 2);
+
+		m_lastPos = row;
+
+		acDocManager->unlockDocument(curDoc());
+	}
+
+	*pResult = 0;
+}
+
+BOOL CCListDlg::OnInitDialog()
+{
+	CAcUiDialog::OnInitDialog();
+
+	// 创建listctrl的标题头
+	m_list.SetExtendedStyle(m_list.GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	CRect rect;
+	m_list.GetClientRect(&rect);
+	double c = 0.3;
+	m_list.InsertColumn(0, _T("连通块编号"), LVCFMT_LEFT, rect.Width()/**c*/);
+	//m_list.InsertColumn(1, _T(""), LVCFMT_LEFT, rect.Width()*(1-c));
+
+	// 清空
+	clearAll();
+
+	initTunnelList();
+
+	//MessageBox(_T("初始化完毕"));
+
+	return TRUE;  // return TRUE unless you set the focus to a control
+	// 异常: OCX 属性页应返回 FALSE
+}
+
+void CCListDlg::initTunnelList()
+{
+	// 锁定当前文档
+	acDocManager->lockDocument(curDoc()); 
+
+	AcDbObjectIdArray objIds;
+	AcDbIntArray ccIds;
+	bool ret = ConnectivityHelper::CC(m_objIds, ccIds);
+
+	// 解锁当前文档
+	acDocManager->unlockDocument(curDoc());
+
+	if(!ret)
+	{
+		MessageBox(_T("初始化网络失败"));
+		return;
+	}
+	if(ccIds.isEmpty())
+	{
+		MessageBox(_T("通风网络是空的"));
+		return;
+	}
+
+	m_objIds.append(objIds);
+	m_ccIds.append(ccIds);
+	ArxEntityHelper::GetEntitiesColor(m_objIds, m_colors); 	// 记录颜色
+
+	int len = ccIds.length();
+	for (int i = 0; i < len; i++)
+	{
+		// 序号
+		CString num;
+		num.Format(_T("连通块%d"), i+1);
+		m_list.InsertItem(i, num);
+		//m_list.SetItemData(i, i);
+
+		m_list.SetItemText(i, 0, num);
+	}
+
+	// 选中第1个
+	if(len>0)
+	{
+		m_list.SetItemState(0, LVIS_SELECTED, LVIS_SELECTED);
+		m_listFinishInitial = true;
+	}
+}
+
+// 目前不进行错误检查
+void CCListDlg::findEdgeByCC( int cc, int& startPos, int& endPos )
+{
+	int len = m_ccIds.length();
+	int pos = 0;
+	for(int i=0;i<len;i++)
+	{
+		if(i == cc)
+		{
+			startPos = pos;
+			endPos = startPos + m_ccIds[i];
+			break;
+		}
+		else
+		{
+			pos = pos + m_ccIds[i];
+		}
+	}
+}
+
+void CCListDlg::clearAll()
+{
+	// 锁定当前文档
+	acDocManager->lockDocument(curDoc()); 
+
+	// 恢复颜色
+	ArxEntityHelper::SetEntitiesColor2(m_objIds, m_colors);
+
+	acDocManager->unlockDocument(curDoc());
+
+	m_list.DeleteAllItems();
+	m_objIds.removeAll();
+	m_colors.removeAll();
+	m_ccIds.removeAll();
+	m_lastPos = -1;
+	m_listFinishInitial = false;
+}
+
+void CCListDlg::OnClosing()
+{
+	// 清空
+	clearAll();
+}

@@ -1,0 +1,45 @@
+#include "StdAfx.h"
+#include "MenuHelper.h"
+
+#include "AppMenu.h"
+
+MenuHelper::MenuHelper(void)
+{
+	m_pMenuImpl = new AppMenu();
+}
+
+MenuHelper::~MenuHelper(void)
+{
+	delete m_pMenuImpl;
+	m_pMenuImpl = 0;
+}
+
+void MenuHelper::AddMenu( const TCHAR* menuName )
+{
+	m_pMenuImpl->AddMenu(menuName);
+}
+
+void MenuHelper::AddSubMenu( const TCHAR* menuName, const TCHAR* command/*=NULL*/ )
+{
+	m_pMenuImpl->AddSubMenu(menuName, command);
+}
+
+void MenuHelper::AddSeparator()
+{
+	m_pMenuImpl->AddSeparator();
+}
+
+void MenuHelper::AddSubSeparator()
+{
+	m_pMenuImpl->AddSubSeparator();
+}
+
+void MenuHelper::CreateMenus()
+{
+	m_pMenuImpl->CreateMenus();
+}
+
+void MenuHelper::CleanUpMenus()
+{
+	AppMenu::CleanUpMenus();
+}

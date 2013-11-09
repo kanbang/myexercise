@@ -1,0 +1,44 @@
+参考feature pack示例中的ToolbarDateTimePicker中的
+ToolbarDateTimePickerViewer.cpp
+
+
+void CToolbarDateTimePickerView::OnDraw(CDC* pDC)
+{
+	CToolbarDateTimePickerDoc* pDoc = GetDocument();
+	ASSERT_VALID(pDoc);
+
+	const int iOffset = 20;
+
+	CFont* pFontOld = (CFont*) pDC->SelectStockObject (DEFAULT_GUI_FONT);
+	ASSERT (pFontOld != NULL);
+
+	CRect rectClient;
+	GetClientRect (&rectClient);
+
+	CRect rectText = rectClient;
+	rectText.DeflateRect (iOffset, iOffset);
+	pDC->DrawText (strInfo, rectText, DT_CALCRECT | DT_WORDBREAK);
+
+	rectText.OffsetRect (	(rectClient.Width () - rectText.Width () - 2 * iOffset) / 2,
+							(rectClient.Height () - rectText.Height () - 2 * iOffset) / 2);
+
+	CRect rectFrame = rectText;
+	rectFrame.InflateRect (iOffset, iOffset);
+
+	pDC->FillSolidRect (rectFrame, ::GetSysColor (COLOR_INFOBK));
+	
+	rectFrame.DeflateRect (1, 1);
+	pDC->Draw3dRect (rectFrame, ::GetSysColor (COLOR_3DSHADOW), 
+					::GetSysColor (COLOR_3DLIGHT));
+
+	rectFrame.DeflateRect (2, 2);
+	pDC->Draw3dRect (rectFrame, ::GetSysColor (COLOR_3DSHADOW), 
+					::GetSysColor (COLOR_3DLIGHT));
+
+	pDC->SetTextColor (::GetSysColor (COLOR_INFOTEXT));
+	pDC->SetBkMode (TRANSPARENT);
+
+	pDC->DrawText (strInfo, rectText, DT_WORDBREAK);
+
+	pDC->SelectObject (pFontOld);
+}

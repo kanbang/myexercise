@@ -1,0 +1,265 @@
+#include "StdAfx.h"
+#include "DefGEPlugin.h"
+
+// 双线巷道
+#include "DoubleTunnelDraw.h"
+
+// 单线巷道
+#include "SingleTunnelDraw.h"
+
+// 双弧线巷道
+#include "DoubleArcTunnelDraw.h"
+
+// 多段线巷道
+#include "PolyLineTunnelDraw.h"
+
+// 单箭头
+#include "SimpelDirectionDraw.h"
+
+// 多段线箭头
+#include "PolyLineDirectionDraw.h"
+
+//// 圆形节点(十字)
+//#include "CircularJointDraw.h"
+//
+//// 圆形节点(填充)
+//#include "CircularJointDraw2.h"
+//
+//// 空节点
+//#include "NullJointDraw.h"
+
+// 简单风机
+#include "SimpleMainFanDraw.h"
+#include "SimpleLocalFanDraw.h"
+
+// 简单风筒
+#include "SimpleChimneyDraw.h"
+
+// 永久风门
+#include "SimplePermanentGateDraw.h"
+// 临时风门
+#include "SimpleTemporaryGateDraw.h"
+// 双向风门
+#include "SimpleDoubleGateDraw.h"
+// 平衡风门
+#include "SimpleBalanceGateDraw.h"
+
+// 永久挡风墙
+#include "SimplePermanentWallDraw.h"
+// 临时挡风墙
+#include "SimpleTemporaryWallDraw.h"
+
+// 墙调节风窗
+#include "SimpleWallCasementDraw.h"
+// 永久风门调节风窗
+#include "SimplePermanentCasementDraw.h"
+// 临时风门调节风窗
+#include "SimpleTemporaryCasementDraw.h"
+
+// 测风站
+#include "SimpleWindStationDraw.h"
+
+// 工作面
+#include "DoubleWorkSurfaceDraw.h"
+#include "PolyLineWorkSurfaceDraw.h"
+
+// 掘进工作面
+#include "DoubleTTunnelDraw.h"
+#include "PolyLineTTunnelDraw.h"
+
+// 火药库、充电室、机电硐室
+#include "DoubleStorageDraw.h"
+#include "PolyLineStorageDraw.h"
+
+// 井筒
+//#include "DoubleShaftDraw.h"
+
+// 指北针
+//#include "CompassBlockDraw.h"
+
+// 风桥
+#include "DoubleWindBridgeDraw.h"
+
+// CircularJointDraw可视化效果的Jig实现
+//#include "CircularJointDraw_Jig.h"
+
+// SingleTunnelDraw可视化效果的Jig实现
+//#include "SingleTunnelDraw_Jig.h"
+
+// DoubleTunnelDraw可视化效果的Jig实现
+//#include "DoubleTunnelDraw_Jig.h"
+
+// DoubleArcTunnelDraw可视化效果的Jig实现
+//#include "SingleArcTunnelDraw_Jig.h"
+
+// DoubleArcTunnelDraw可视化效果的jig实现
+//#include "DoubleArcTunnelDraw_Jig.h"
+
+// DoubleWorkSurfaceDraw可视化效果的jig实现
+//#include "DoubleWorkSurfaceDraw_Jig.h"
+
+void DefGEPlugin::initialize( MineGEDrawManager* pGEDrawManager )
+{
+	BEGIN_REGISTER_MINEGE_DRAW(MineGEDrawManager, pGEDrawManager)
+		// 巷道
+		REGISTER_MINEGE_DRAW(Tunnel, DoubleTunnelDraw)
+		REGISTER_MINEGE_DRAW(Tunnel, PolyLineTunnelDraw)
+		REGISTER_MINEGE_DRAW(Tunnel, SingleTunnelDraw)
+		//REGISTER_MINEGE_DRAW_JIG(Tunnel, DoubleTunnelDraw, DoubleTunnelDraw_Jig)
+		//REGISTER_MINEGE_DRAW_JIG(Tunnel, SingleTunnelDraw, SingleTunnelDraw_Jig)
+
+		// 弧线巷道
+		REGISTER_MINEGE_DRAW(ArcTunnel, DoubleArcTunnelDraw)
+		//REGISTER_MINEGE_DRAW_JIG(ArcTunnel, DoubleArcTunnelDraw, DoubleArcTunnelDraw_Jig)
+		//REGISTER_MINEGE_DRAW_JIG(ArcTunnel, DoubleArcTunnelDraw, SingleArcTunnelDraw_Jig)
+
+		// 回采工作面
+		REGISTER_MINEGE_DRAW(WorkSurface, DoubleWorkSurfaceDraw)
+		REGISTER_MINEGE_DRAW(WorkSurface, PolyLineWorkSurfaceDraw)
+		//REGISTER_MINEGE_DRAW_JIG(WorkSurface, DoubleWorkSurfaceDraw, DoubleWorkSurfaceDraw_Jig)
+
+		// 掘进工作面
+		REGISTER_MINEGE_DRAW(TTunnel, DoubleTTunnelDraw)
+		REGISTER_MINEGE_DRAW(TTunnel, PolyLineTTunnelDraw)
+
+		REGISTER_MINEGE_DRAW(WindDirection, PolyLineDirectionDraw)
+		REGISTER_MINEGE_DRAW(WindDirection, SimpelDirectionDraw)
+
+		// 节点
+		//REGISTER_MINEGE_DRAW(Joint, CircularJointDraw)
+		////REGISTER_MINEGE_DRAW_JIG(Joint, CircularJointDraw, CircularJointDraw_Jig)
+		//REGISTER_MINEGE_DRAW(Joint, CircularJointDraw2)
+		//REGISTER_MINEGE_DRAW(Joint, NullJointDraw)
+		
+		// 风机
+		REGISTER_MINEGE_DRAW(MainFan, SimpleMainFanDraw)
+		REGISTER_MINEGE_DRAW(LocalFan, SimpleLocalFanDraw)
+
+		// 风筒
+		REGISTER_MINEGE_DRAW(Chimney, SimpleChimneyDraw)
+
+		// 风门
+		REGISTER_MINEGE_DRAW(PermanentGate, SimplePermanentGateDraw)
+		REGISTER_MINEGE_DRAW(TemporaryGate, SimpleTemporaryGateDraw)
+		REGISTER_MINEGE_DRAW(DoubleGate, SimpleDoubleGateDraw)
+		REGISTER_MINEGE_DRAW(BalanceGate, SimpleBalanceGateDraw)
+
+		// 挡风墙
+		REGISTER_MINEGE_DRAW(PermanentWall, SimplePermanentWallDraw)
+		REGISTER_MINEGE_DRAW(TemporaryWall, SimpleTemporaryWallDraw)
+
+		// 调节风墙
+		REGISTER_MINEGE_DRAW(WallCasement, SimpleWallCasementDraw)
+		REGISTER_MINEGE_DRAW(PermanentCasement, SimplePermanentCasementDraw)
+		REGISTER_MINEGE_DRAW(TemporaryCasement, SimpleTemporaryCasementDraw)
+		
+		// 测风站
+		REGISTER_MINEGE_DRAW(WindStation, SimpleWindStationDraw)
+
+		// 硐室
+		REGISTER_MINEGE_DRAW(PowderStorage, DoublePowderStorageDraw)
+		REGISTER_MINEGE_DRAW(MachineRoom, DoubleMachineRoomDraw)
+		REGISTER_MINEGE_DRAW(ChargeRoom, DoubleChargeRoomDraw)
+
+		REGISTER_MINEGE_DRAW(PowderStorage, PolyLinePowderStorageDraw)
+		REGISTER_MINEGE_DRAW(MachineRoom, PolyLineMachineRoomDraw)
+		REGISTER_MINEGE_DRAW(ChargeRoom, PolyLineChargeRoomDraw)
+
+		//REGISTER_MINEGE_DRAW(Shaft, DoubleShaftDraw)
+
+		// 指北针
+		//REGISTER_MINEGE_DRAW(Compass, CompassBlockDraw)
+
+		// 风桥
+		REGISTER_MINEGE_DRAW(WindBridge, DoubleWindBridgeDraw)
+
+	END_REGISTER_MINEGE_DRAW
+}
+
+void DefGEPlugin::unInitialize( MineGEDrawManager* pGEDrawManager )
+{
+	BEGIN_UNREGISTER_MINEGE_DRAW(MineGEDrawManager, pGEDrawManager)
+		// 巷道
+		UNREGISTER_MINEGE_DRAW(Tunnel, DoubleTunnelDraw)
+		UNREGISTER_MINEGE_DRAW(Tunnel, PolyLineTunnelDraw)
+		UNREGISTER_MINEGE_DRAW(Tunnel, SingleTunnelDraw)
+
+		// 弧线巷道
+		UNREGISTER_MINEGE_DRAW(ArcTunnel, DoubleArcTunnelDraw)
+		UNREGISTER_MINEGE_DRAW(ArcTunnel, DoubleArcTunnelDraw)
+
+		// 回采工作面
+		UNREGISTER_MINEGE_DRAW(WorkSurface, DoubleWorkSurfaceDraw)
+		UNREGISTER_MINEGE_DRAW(WorkSurface, PolyLineWorkSurfaceDraw)
+
+		// 掘进工作面
+		UNREGISTER_MINEGE_DRAW(TTunnel, DoubleTTunnelDraw)
+		UNREGISTER_MINEGE_DRAW(TTunnel, PolyLineTTunnelDraw)
+
+		// 节点
+		/*UNREGISTER_MINEGE_DRAW(Joint, CircularJointDraw)
+		UNREGISTER_MINEGE_DRAW(Joint, CircularJointDraw2)
+		UNREGISTER_MINEGE_DRAW(Joint, NullJointDraw)*/
+
+		// 风流方向
+		UNREGISTER_MINEGE_DRAW(WindDirection, PolyLineDirectionDraw)
+		UNREGISTER_MINEGE_DRAW(WindDirection, SimpelDirectionDraw)
+
+		// 风机
+		UNREGISTER_MINEGE_DRAW(MainFan, SimpleMainFanDraw)
+		UNREGISTER_MINEGE_DRAW(LocalFan, SimpleLocalFanDraw)
+
+		// 风筒
+		UNREGISTER_MINEGE_DRAW(Chimney, SimpleChimneyDraw)
+
+		// 风门
+		UNREGISTER_MINEGE_DRAW(PermanentGate, SimplePermanentGateDraw)
+		UNREGISTER_MINEGE_DRAW(TemporaryGate, SimpleTemporaryGateDraw)
+		UNREGISTER_MINEGE_DRAW(DoubleGate, SimpleDoubleGateDraw)
+		UNREGISTER_MINEGE_DRAW(BalanceGate, SimpleBalanceGateDraw)
+
+		// 挡风墙
+		UNREGISTER_MINEGE_DRAW(PermanentWall, SimplePermanentWallDraw)
+		UNREGISTER_MINEGE_DRAW(TemporaryWall, SimpleTemporaryWallDraw)
+
+		// 调节风墙
+		UNREGISTER_MINEGE_DRAW(WallCasement, SimpleWallCasementDraw)
+		UNREGISTER_MINEGE_DRAW(PermanentCasement, SimplePermanentCasementDraw)
+		UNREGISTER_MINEGE_DRAW(TemporaryCasement, SimpleTemporaryCasementDraw)
+		
+		// 测风站
+		UNREGISTER_MINEGE_DRAW(WindStation, SimpleWindStationDraw)
+
+		// 硐室
+		UNREGISTER_MINEGE_DRAW(PowderStorage, DoublePowderStorageDraw)
+		UNREGISTER_MINEGE_DRAW(MachineRoom, DoubleMachineRoomDraw)
+		UNREGISTER_MINEGE_DRAW(ChargeRoom, DoubleChargeRoomDraw)
+		UNREGISTER_MINEGE_DRAW(PowderStorage, PolyLinePowderStorageDraw)
+		UNREGISTER_MINEGE_DRAW(MachineRoom, PolyLineMachineRoomDraw)
+		UNREGISTER_MINEGE_DRAW(ChargeRoom, PolyLineChargeRoomDraw)
+
+		//UNREGISTER_MINEGE_DRAW(Shaft, DoubleShaftDraw)
+
+		// 指北针
+		//UNREGISTER_MINEGE_DRAW(Compass, CompassBlockDraw)
+
+		// 风桥
+		UNREGISTER_MINEGE_DRAW(WindBridge, DoubleWindBridgeDraw)
+
+	END_UNREGISTER_MINEGE_DRAW
+}
+
+// 插件创建函数定义实现并导出
+MINEGE_PLUGIN_CREATE_FUNC_IMPL(DefGEPlugin)
+
+//MINEGE_DRAW_JIG_CREATE_FUNC_IMPL(Joint, CircularJointDraw, CircularJointDraw_Jig)
+
+//MINEGE_DRAW_JIG_CREATE_FUNC_IMPL(Tunnel, SingleTunnelDraw, SingleTunnelDraw_Jig)
+//MINEGE_DRAW_JIG_CREATE_FUNC_IMPL(Tunnel, DoubleTunnelDraw, DoubleTunnelDraw_Jig)
+//
+//MINEGE_DRAW_JIG_CREATE_FUNC_IMPL(ArcTunnel, DoubleArcTunnelDraw, SingleArcTunnelDraw_Jig)
+//MINEGE_DRAW_JIG_CREATE_FUNC_IMPL(ArcTunnel, DoubleArcTunnelDraw, DoubleArcTunnelDraw_Jig)
+//
+//MINEGE_DRAW_JIG_CREATE_FUNC_IMPL(WorkSurface, DoubleWorkSurfaceDraw, DoubleWorkSurfaceDraw_Jig)
+
+// draw创建函数实现宏(删除了，因为还不能确定draw的构造方式，目前的draw是通过"名称+ARX RTTI"来创建的)

@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RunGambit", "RunGambit\RunGambit.vcproj", "{8074524B-4668-4B7F-868E-7DCE452661C7}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RunFluent", "RunFluent\RunFluent.vcproj", "{B1E6F8E6-B7DC-4579-8419-C8BE6586FA5F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8074524B-4668-4B7F-868E-7DCE452661C7}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8074524B-4668-4B7F-868E-7DCE452661C7}.Debug|Win32.Build.0 = Debug|Win32
+		{8074524B-4668-4B7F-868E-7DCE452661C7}.Release|Win32.ActiveCfg = Release|Win32
+		{8074524B-4668-4B7F-868E-7DCE452661C7}.Release|Win32.Build.0 = Release|Win32
+		{B1E6F8E6-B7DC-4579-8419-C8BE6586FA5F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B1E6F8E6-B7DC-4579-8419-C8BE6586FA5F}.Debug|Win32.Build.0 = Debug|Win32
+		{B1E6F8E6-B7DC-4579-8419-C8BE6586FA5F}.Release|Win32.ActiveCfg = Release|Win32
+		{B1E6F8E6-B7DC-4579-8419-C8BE6586FA5F}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

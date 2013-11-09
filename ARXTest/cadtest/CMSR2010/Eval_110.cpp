@@ -1,0 +1,292 @@
+#include "StdAfx.h"
+#include "Eval_110.h"
+
+#include "../MineGE/DrawHelper.h"
+
+/* 全局函数(实现在Tool.cpp中) */
+extern int FindShafts( AcDbObjectIdArray& shafts );
+
+/**********************************************************/
+/***************** EvalDataExtractor_110 ******************/
+/**********************************************************/
+EvalDataExtractor_110::EvalDataExtractor_110()
+{
+    acutPrintf( _T( "\n井筒提升评价..." ) );
+    init();
+    acutPrintf( _T( "\n找到可评价数据的个数:%d" ), ds.size() );
+    itr = ds.begin();
+}
+
+EvalDataExtractor_110::~EvalDataExtractor_110()
+{
+    clean();
+}
+
+void EvalDataExtractor_110::init()
+{
+    acutPrintf( _T( "\n110 -- 查找所有井筒图元" ) );
+
+    // 1、查找进风井和回风井
+    AcDbObjectIdArray shafts;
+    int pos = FindShafts( shafts );
+    if( shafts.isEmpty() ) return;
+
+    AcDbObjectIdArray objIds;
+    objIds.append( shafts );
+
+    // 2、关联
+    int len = objIds.length();
+    for( int i = 0; i < len; i++ )
+    {
+        LiftShaftDataLink* pLsm = new LiftShaftDataLink();
+        pLsm->setDataSource( objIds[i] );
+        if( !pLsm->updateData( false ) )
+        {
+            // 清理,并退出
+            delete pLsm;
+            clean();
+            break;
+        }
+
+        pLsm->hasLift = ( ( pLsm->sp & SEP_LIFT_COAL ) != 0 );
+        pLsm->vt = ( i < pos ) ? VT_IN : VT_OUT; // 位于pos之前的是进风井，之后的则是回风井
+
+        ds.push_back( pLsm );
+    }
+    acutPrintf( _T( "\n110 -- 查找完毕" ) );
+}
+
+void EvalDataExtractor_110::clean()
+{
+    for( DataSet::iterator itr = ds.begin(); itr != ds.end(); itr++ )
+    {
+        delete ( *itr );
+    }
+    ds.clear();
+}
+
+bool EvalDataExtractor_110::hasNext()
+{
+    return itr != ds.end();
+}
+
+void EvalDataExtractor_110::doExtract( EvalData* pEvalData )
+{
+    LiftShaftDataLink* pLsm = *itr;
+    EvalData_110* pLSData = ( EvalData_110* )pEvalData;
+
+    pLSData->name = pLsm->name;
+    pLSData->v = pLsm->v;
+    pLSData->sp = pLsm->sp;
+
+    pLSData->vt = pLsm->vt;
+    pLSData->hasLift = pLsm->hasLift;
+
+    itr++;
+}
+
+/**********************************************************/
+/****************** EvalData_110 **************/
+/**********************************************************/
+EvalData_110::EvalData_110()
+{
+
+}
+
+void EvalData_110::createTableImpl( TableCreator* pTableCreator )
+{
+    BEGIN_DEFINE_FIELD( TableCreator, pTableCreator )
+    DEFINE_STRING_FIELD( 井筒名称 )
+    DEFINE_STRING_FIELD( 提升方式 )
+    DEFINE_STRING_FIELD( 进风或回风 )
+    DEFINE_REAL_FIELD( 风速 )
+    //DEFINE_REAL_FIELD(漏风率)
+    DEFINE_STRING_FIELD( 完善的封闭措施 )
+    DEFINE_STRING_FIELD( 甲烷断电仪 )
+    DEFINE_STRING_FIELD( 防尘措施 )
+    DEFINE_STRING_FIELD( 自动报警灭火装置 )
+    DEFINE_STRING_FIELD( 消防管路 )
+    END_DEFINE_FIELD
+
+    EvalData::createTableImpl( pTableCreator );
+}
+
+void EvalData_110::writeToTableImpl( DataWriter* pDataWriter )
+{
+    BEGIN_WRITE_DATA( DataWriter, pDataWriter )
+    WRITE_STRING_DATA( 井筒名称, name )
+    if( !hasLift )
+    {
+        WRITE_STRING_DATA( 提升方式, _T( "无提升" ) )
+    }
+    else if( ( sp & SEP_SKIP_HOIST ) != 0 )
+    {
+        WRITE_STRING_DATA( 提升方式, _T( "箕斗提升" ) )
+    }
+    else
+    {
+        WRITE_STRING_DATA( 提升方式, _T( "带式输送" ) )
+    }
+    if( vt == VT_IN )
+    {
+        WRITE_STRING_DATA( 进风或回风, _T( "进风" ) )
+    }
+    else
+    {
+        WRITE_STRING_DATA( 进风或回风, _T( "回风" ) )
+    }
+    WRITE_REAL_DATA( 风速, v )
+    if( !hasLift )
+    {
+        WRITE_STRING_DATA( 完善的封闭措施, _T( "-" ) )
+    }
+    else if( ( sp && SEP_ENCLOSE ) != 0 )
+    {
+        WRITE_STRING_DATA( 完善的封闭措施, _T( "有" ) )
+    }
+    else
+    {
+        WRITE_STRING_DATA( 完善的封闭措施, _T( "无" ) )
+    }
+    if( !hasLift )
+    {
+        WRITE_STRING_DATA( 甲烷断电仪, _T( "-" ) )
+    }
+    else if( ( sp & SEP_CH4_INTERRUPT ) != 0 )
+    {
+        WRITE_STRING_DATA( 甲烷断电仪, _T( "有" ) )
+    }
+    else
+    {
+        WRITE_STRING_DATA( 甲烷断电仪, _T( "有" ) )
+    }
+    if( !hasLift )
+    {
+        WRITE_STRING_DATA( 防尘措施, _T( "-" ) )
+    }
+    else if( ( sp & SEP_DUST_PROOF ) != 0 )
+    {
+        WRITE_STRING_DATA( 防尘措施, _T( "有" ) )
+    }
+    else
+    {
+        WRITE_STRING_DATA( 防尘措施, _T( "无" ) )
+    }
+    if( !hasLift )
+    {
+        WRITE_STRING_DATA( 自动报警灭火装置, _T( "-" ) )
+    }
+    else if( ( sp & SEP_FIRE_ALARM ) != 0 )
+    {
+        WRITE_STRING_DATA( 自动报警灭火装置, _T( "有" ) )
+    }
+    else
+    {
+        WRITE_STRING_DATA( 自动报警灭火装置, _T( "无" ) )
+    }
+    if( !hasLift )
+    {
+        WRITE_STRING_DATA( 消防管路, _T( "-" ) )
+    }
+    else if( ( sp & SEP_FIRE_CONTROL_PIPE ) != 0 )
+    {
+        WRITE_STRING_DATA( 消防管路, _T( "有" ) )
+    }
+    else
+    {
+        WRITE_STRING_DATA( 消防管路, _T( "无" ) )
+    }
+    END_WRITE_DATA
+
+    EvalData::writeToTableImpl( pDataWriter );
+}
+
+/**********************************************************/
+/******************* Eval_110 *****************/
+/**********************************************************/
+
+bool Eval_110::doEval( EvalData* pEvalData )
+{
+    return eval_once( pEvalData );
+}
+
+bool Eval_110::eval_once( EvalData* pEvalData )
+{
+    EvalData_110* pLSData = ( EvalData_110* )pEvalData;
+
+    bool ret = true;
+    if( pLSData->hasLift )
+    {
+        if( pLSData->vt == VT_IN )
+        {
+            ret = eval_ventInShaft( pLSData );
+        }
+        else
+        {
+            ret = eval_ventOutShat( pLSData );
+        }
+    }
+    return ret;
+}
+
+bool Eval_110::eval_ventInShaft( EvalData_110* pLSData )
+{
+    double v = pLSData->v;
+    int ep = pLSData->sp;
+
+    bool ret = true;
+    // 比较风速
+    if( ( ep & SEP_SKIP_HOIST ) != 0 )          // 箕斗提升
+    {
+        ret = ( ( v > 0 ) && ( v <= 6 ) );
+    }
+    else if( ( ep & SEP_BELT_CONVEY ) != 0 )    	// 带式输送
+    {
+        //acutPrintf(_T("\n带式传送，风速:%.3f"), v);
+        ret = ( ( v > 0 ) && ( v <= 4 ) );
+    }
+    //acutPrintf(_T("\n评价进风大巷,结果1:%s"),ret?_T("合格"):_T("不合格"));
+    ret = ret && ( ( ep & SEP_DUST_PROOF ) != 0 );
+    ret = ret && ( ( ep & SEP_FIRE_ALARM ) != 0 );
+    ret = ret && ( ( ep & SEP_FIRE_CONTROL_PIPE ) != 0 );
+    //acutPrintf(_T("\n评价进风大巷,结果2:%s"),ret?_T("合格"):_T("不合格"));
+
+    return ret;
+}
+
+bool Eval_110::eval_ventOutShat( EvalData_110* pLSData )
+{
+    double v = pLSData->v;
+    int ep = pLSData->sp;
+
+    bool ret = true;
+    if( ( ep & SEP_SKIP_HOIST ) != 0 )		// 箕斗提升井作为回风井
+    {
+        ret = ret && ( ( ep & SEP_ENCLOSE ) != 0 );
+        ret = ret && ( ( ep & SEP_DUST_PROOF ) == 0 );
+    }
+    else     	                       // 带式输送井作为回风井
+    {
+        ret = ret && ( ( v > 0 ) && ( v <= 6 ) );
+        ret = ret && ( ( ep & SEP_CH4_INTERRUPT ) != 0 );
+    }
+    return ret;
+}
+
+/**********************************************************/
+/*************** EvalFactory_110 **************/
+/**********************************************************/
+Eval* EvalFactory_110::createEvalObject()
+{
+    return new Eval_110();
+}
+
+EvalData* EvalFactory_110::createEvalDataObject()
+{
+    return new EvalData_110();
+}
+
+EvalDataExtractor* EvalFactory_110::createEvalDataExtractorObject()
+{
+    return new EvalDataExtractor_110();
+}

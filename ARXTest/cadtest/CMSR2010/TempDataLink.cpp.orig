@@ -1,0 +1,9 @@
+#include "StdAfx.h"
+#include "TempDataLink.h"
+
+void TempDataLink::regDatas()
+{
+	linkStringData(_T("名称"), &name);
+	linkDoubleData(_T("温度"), &t);
+	linkIntData(_T("超温控制措施"), &cm);
+}

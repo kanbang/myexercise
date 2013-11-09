@@ -1,0 +1,445 @@
+#include "BuildNetwork.h"
+
+#include <map>
+#include <cmath>
+#include <vector>
+#include <fstream>
+//#include <string>
+
+typedef std::vector<int>             IntArray;
+typedef std::vector<double>          DoubleArray;
+typedef std::map<int, Digraph::Node> IntNodeMap;
+typedef std::map<int, Digraph::Arc>  IntArcMap;
+//typedef vector<string>          StringArray;
+
+//static void SplitString(const string& content, const string& token, StringArray& cc)
+//{
+//	const char* delimeter =  token.c_str();
+//	char * pch = strtok((char*)content.c_str(), delimeter);
+//	while(pch != NULL)
+//	{
+//		cc.push_back(pch);
+//		pch = strtok(NULL, delimeter);
+//	}
+//}
+
+static void EraseZeroDegreeNodes(Digraph& dg)
+{
+	// 查找并删除度(出度+入度)等于0的节点
+	NodeArray ns;
+
+	for(Digraph::NodeIt n(dg); n!=INVALID; ++n)
+	{
+		if((countOutArcs(dg, n) + countInArcs(dg, n)) == 0) 
+		{
+			ns.push_back(n);
+		}
+	}
+	int len = ns.size();
+	for(int i=0;i<len;i++) 
+	{
+		dg.erase(ns[i]); // 删除空节点(度等于0)
+	}
+}
+
+static void ChangeOutArcSourceNode(Digraph& dg, EdgeArray& es, Digraph::Node v)
+{
+	int len = es.size();
+	for(int i=0;i<len;i++)
+	{
+		dg.changeSource(es[i], v);
+	}
+}
+
+// 将分支es的末点变成v
+static void ChangeInArcTargetNode(Digraph& dg, EdgeArray& es, Digraph::Node v)
+{
+	int len = es.size();
+	for(int i=0;i<len;i++)
+	{
+		dg.changeTarget(es[i], v);
+	}
+}
+
+static Digraph::Node AddVirtualSource(Digraph& dg)
+{
+	NodeArray sNodes;  // 源点集合
+
+	// 对网络进行分析,查找源点
+	for(Digraph::NodeIt n(dg); n!=INVALID; ++n)
+	{
+		// 记录入度=0的源点
+		if(0 == countInArcs(dg, n)) sNodes.push_back(n);
+	}
+
+	/*
+	 * !!!前提条件!!!
+	 * 至少有一个源点和一个汇点
+	 * 目前暂时不考虑其它的"不正常情况"
+	 * 例如：没有源点或没有汇点，或者源汇点都没有
+	 */
+	if(sNodes.empty()) return INVALID;
+
+	// 增加一个虚拟源点
+	Digraph::Node sn = dg.addNode();
+	
+	// 增加源点"流出分支"(虚拟源点-->源点)
+	int len = sNodes.size();
+	for(int i=0;i<len;i++)
+	{
+		Digraph::Arc e = dg.addArc(sn, sNodes[i]);
+	}
+	return sn;  // 返回新增的虚拟源点
+}
+
+static Digraph::Node AddVirtualTarget(Digraph& dg)
+{
+	NodeArray tNodes;  // 源点集合
+
+	// 对网络进行分析,查找汇点
+	for(Digraph::NodeIt n(dg); n!=INVALID; ++n)
+	{
+		// 记录出度=0的汇点
+		if(0 == countOutArcs(dg, n)) tNodes.push_back(n);
+	}
+
+	/*
+	 * !!!前提条件!!!
+	 * 至少有一个源点和一个汇点
+	 * 目前暂时不考虑其它的"不正常情况"
+	 * 例如：没有源点或没有汇点，或者源汇点都没有
+	 */
+
+	if(tNodes.empty()) return INVALID;
+
+	// 增加一个虚拟汇点
+	Digraph::Node tn = dg.addNode();
+
+	// 增加汇点"流入分支"(汇点-->虚拟汇点)
+	int len = tNodes.size();
+	for(int i=0;i<len;i++)
+	{
+		Digraph::Arc e = dg.addArc(tNodes[i], tn);
+	}
+	return tn; // 返回新增的虚拟汇点
+}
+
+static bool ReadTopologyDatas(const char* filename, IntArray& E, IntArray& U, IntArray& V, DoubleArray& R)
+{
+	/* 读取网络拓扑和初始分支风阻 */
+
+	std::ifstream inFile(filename);
+	if(!inFile) return false;
+
+	while(!inFile.eof())
+	{
+		int e, u, v;
+		double r;
+		inFile >> e >> u >> v >> r;
+
+		if(inFile.fail()) break;
+
+		E.push_back(e);
+		U.push_back(u);
+		V.push_back(v);
+		R.push_back(r);
+	}
+
+	inFile.close();
+
+	return true;
+}
+
+static void ReadNetworkData(std::ifstream& inFile, double& Q)
+{
+	/* 读取总风量 */
+	inFile >> Q;
+}
+
+static void ReadVNR_EdgeDatas_Q(std::ifstream& inFile, IntArray& E)
+{
+	// 1) 读取已测风量分支个数
+	int n = 0;
+	inFile>>n;
+
+	// 2) 读取已测分支
+	for(int i=0;i<n;i++)
+	{
+		int e;
+		inFile >> e;
+		E.push_back(e);
+	}
+}
+
+static void ReadVNR_EdgeDatas_R(std::ifstream& inFile, IntArray& E)
+{
+	// 1) 读取已测风阻分支个数
+	int n = 0;
+	inFile>>n;
+
+	// 2) 读取已测分支
+	for(int i=0;i<n;i++)
+	{
+		int e;
+		inFile >> e;
+		E.push_back(e);
+	}
+}
+
+static void ReadVNR_NodeDatas(std::ifstream& inFile, IntArray& U)
+{
+	// 1) 读取节点数据个数
+	int n = 0;
+	inFile>>n;
+
+	// 2) 读取节点数据
+	for(int i=0;i<n;i++)
+	{
+		int u;
+		inFile >> u;
+
+		U.push_back(u);
+	}
+}
+
+static void BuildNodesMap(const IntArray& nodes, Digraph& dg, IntNodeMap& nodes_map)
+{
+	for(unsigned int i=0;i<nodes.size();i++)
+	{
+		if(nodes_map.find(nodes[i]) == nodes_map.end())
+		{
+			nodes_map.insert(IntNodeMap::value_type(nodes[i], dg.addNode()));
+		}
+	}
+}
+
+static void BuildEdgesMap(const IntArray& E, const IntArray& U, const IntArray& V, 
+						  Digraph& dg, IntNodeMap& nodes_map, IntArcMap& edges_map)
+{
+	for(unsigned int i=0;i<E.size();i++)
+	{
+		if(edges_map.find(E[i]) == edges_map.end())
+		{
+			Digraph::Node u = nodes_map[U[i]];
+			Digraph::Node v = nodes_map[V[i]];
+			Digraph::Arc e = dg.addArc(u, v);
+			edges_map.insert(IntArcMap::value_type(E[i], e));
+		}
+	}
+}
+
+static bool ReadVNRDatas(const char* filename, 
+						 double& Q, 
+						 IntArray& TE, IntArray& TER, IntArray& TU)
+{
+	// 从文件中读取拓扑数据
+	std::ifstream inFile(filename);
+	if(!inFile) return false;
+
+	ReadNetworkData(inFile, Q);
+	ReadVNR_EdgeDatas_Q(inFile, TE);
+	ReadVNR_EdgeDatas_R(inFile, TER);
+	ReadVNR_NodeDatas(inFile, TU);
+
+	inFile.close();
+
+	return true;
+}
+
+static void BuildNetworkMap(const IntArray& E, const IntArray& U, const IntArray& V, 
+							Digraph& dg, IntNodeMap& nodes_map, IntArcMap& edges_map)
+{
+	// 建立节点编号-->节点映射
+	BuildNodesMap(U, dg, nodes_map);
+	BuildNodesMap(V, dg, nodes_map);
+
+	// 建立分支编号-->分支映射
+	BuildEdgesMap(E, U, V, dg, nodes_map, edges_map);
+
+	// 删除度为0的节点
+	EraseZeroDegreeNodes(dg);
+}
+
+static void InitVNR_EdgeData(Digraph& dg, IntArcMap& edges_map, VNR_EdgeMap& vnr_edge_map)
+{
+	// 初始化所有分支数据
+	for(IntArcMap::iterator itr=edges_map.begin();itr!=edges_map.end();++itr)
+	{
+		int id = itr->first;
+		Digraph::Arc e = itr->second;
+
+		VNR_Edge_Data data = {id, 0, 0, 0, 0, false};
+		vnr_edge_map[e] = data;
+	}
+}
+
+static bool InitVNR_EdgeData_R(const IntArray& E, 
+							   const DoubleArray& R, 
+							   Digraph& dg, 
+							   IntArcMap& edges_map, 
+							   VNR_EdgeMap& vnr_edge_map)
+{
+	int count = 0;
+	int n = E.size();
+	for(int i=0;i<n;i++)
+	{
+		IntArcMap::iterator itr = edges_map.find(E[i]);
+		if(itr != edges_map.end())
+		{
+			Digraph::Arc e = itr->second;
+			vnr_edge_map[e].r = fabs(R[i]);
+
+			count++;
+		}
+	}
+	// 保证每条分支都分配了风阻
+	return (count == n);
+}
+
+static bool InitVNR_EdgeData_TQ(const IntArray& TE, 
+							   Digraph& dg, 
+							   IntArcMap& edges_map, 
+							   VNR_EdgeMap& vnr_edge_map)
+{
+	int count = 0;
+	int n = TE.size();
+	for(int i=0;i<n;i++)
+	{
+		IntArcMap::iterator itr = edges_map.find(TE[i]);
+		if(itr != edges_map.end())
+		{
+			Digraph::Arc e = itr->second;
+			vnr_edge_map[e].q = vnr_edge_map[e].cq;
+			vnr_edge_map[e].bInitQ = true;
+
+			count++;
+		}
+	}
+	return (count != 0);
+}
+
+static bool InitVNR_EdgeData_TR(const IntArray& TR, 
+								Digraph& dg, 
+								IntArcMap& edges_map, 
+								VNR_EdgeMap& vnr_edge_map)
+{
+	int count = 0;
+	int n = TR.size();
+	for(int i=0;i<n;i++)
+	{
+		IntArcMap::iterator itr = edges_map.find(TR[i]);
+		if(itr != edges_map.end())
+		{
+			Digraph::Arc e = itr->second;
+			vnr_edge_map[e].bInitR = true;
+
+			count++;
+		}
+	}
+	return (count != 0);
+}
+
+static void InitVNR_NodeData(Digraph& dg, IntNodeMap& nodes_map, VNR_NodeMap& vnr_node_map)
+{
+	for(IntNodeMap::iterator itr=nodes_map.begin();itr!=nodes_map.end();++itr)
+	{
+		int id = itr->first;
+		Digraph::Node u = itr->second;
+
+		VNR_Node_Data data = {id, 0, 0, false};
+		vnr_node_map[u] = data;
+	}
+}
+
+static bool InitVNR_NodeData_TP(const IntArray& TU,
+								Digraph& dg, IntNodeMap& nodes_map, 
+								VNR_NodeMap& vnr_node_map)
+{
+	int count = 0;
+	int n = TU.size();
+	for(int i=0;i<n;i++)
+	{
+		IntNodeMap::iterator itr = nodes_map.find(TU[i]);
+		if(itr != nodes_map.end())
+		{
+			Digraph::Node u = itr->second;
+			vnr_node_map[u].p = vnr_node_map[u].cp;
+			vnr_node_map[u].bInitP = true;
+
+			count++;
+		}
+	}
+	return (count != 0);
+}
+
+static bool BuildNetworkFromFile(const char* topology_data_filename,
+								 const char* vnr_data_filename, 
+								 Digraph& dg, 
+								 VNR_EdgeMap& vnr_edge_map, 
+								 VNR_NodeMap& vnr_node_map,
+								 VNR_Network_Data& vnr_network_data)
+{
+	// 网络拓扑和分支风阻
+	IntArray E, U, V;
+	DoubleArray R;
+
+	// 从文件中读取网络拓扑数据(网络拓扑、分支数据、节点数据)
+	if(!ReadTopologyDatas(topology_data_filename, E, U, V, R)) return false;
+
+	// 从文件中读取阻力系数数据(总风量、总阻力、分支数据、节点数据)
+	// 已测风量的分支
+	IntArray TE;
+	// 已测风阻的分支
+	IntArray TR;
+	// 已测节点
+	IntArray TU;
+	// 总风量，总阻力
+	double Q;
+	if(!ReadVNRDatas(vnr_data_filename, Q, TE, TR, TU)) return false;
+	vnr_network_data.Q = Q;
+
+	// 构建编号到网络分支和节点的映射关系
+	// 可能存在分支和节点编号重复的情况，需要剔除掉
+	IntNodeMap nodes_map;
+	IntArcMap edges_map;
+	BuildNetworkMap(E, U, V, dg, nodes_map, edges_map);
+
+	// 初始化已测分支数据(风阻、风量)
+	// 可能还需要考虑：
+	//		1) 要初始化风量的最少分支个数
+	//		2) 哪些分支必须要初始化???
+	//      3) 有些分支的风阻是已知的
+	InitVNR_EdgeData(dg, edges_map, vnr_edge_map);
+	if(!InitVNR_EdgeData_R(E, R, dg, edges_map, vnr_edge_map)) return false;
+	if(!InitVNR_EdgeData_TQ(TE, dg, edges_map, vnr_edge_map)) return false;
+	if(!InitVNR_EdgeData_TR(TR, dg, edges_map, vnr_edge_map)) return false;
+
+	// 初始化节点压力数据
+	// 必须提供源点和汇点节点的压力
+	InitVNR_NodeData(dg, nodes_map, vnr_node_map);
+	if(!InitVNR_NodeData_TP(TU, dg, nodes_map, vnr_node_map)) return false;
+
+	return true;
+}
+
+bool BuildNetwork(
+	const char* topology_data_filename,
+	const char* vnr_data_filename,
+	Digraph& dg, 
+	VNR_EdgeMap& vnr_edge_map, 
+	VNR_NodeMap& vnr_node_map, 
+	VNR_Network_Data& vnr_network_data)
+{
+	return BuildNetworkFromFile(topology_data_filename, vnr_data_filename, dg, vnr_edge_map, vnr_node_map, vnr_network_data);
+}
+
+bool AddVirtualSTNode(Digraph& dg, Digraph::Node& sn, Digraph::Node& tn)
+{
+	// 增加一个虚拟源点及分支
+	/*Digraph::Node*/ sn = AddVirtualSource(dg);
+
+	// 增加一个虚拟汇点及分支
+	/*Digraph::Node*/ tn = AddVirtualTarget(dg);
+
+	return (sn != INVALID) && (tn != INVALID);
+}

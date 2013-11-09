@@ -1,0 +1,78 @@
+#include "stdafx.h"
+
+#include "../MineGE/DataLink.h"
+#include "../MineGE/HelperClass.h"
+#include "../ArxHelper/HelperClass.h"
+
+class TunnelDataLink : public DataLink
+{
+protected:
+    virtual void regDatas()
+    {
+        linkDoubleData( _T( "氧气浓度" ), &O2 );
+        linkDoubleData( _T( "甲烷浓度" ), &CH4 );
+        linkDoubleData( _T( "断面面积" ), &area );
+    }
+
+public:
+    double O2;
+    double CH4;
+    double area;
+};
+
+// 初始化默认数据
+
+// 1) 氧气浓度20%
+static void InitDefTunnelData()
+{
+    // 所有巷道、工作面
+    AcDbObjectIdArray objIds;
+    DrawHelper::FindMineGEs( _T( "Tunnel" ), objIds );
+
+    int len = objIds.length();
+    for( int i = 0; i < len; i++ )
+    {
+        TunnelDataLink odl;
+        odl.setDataSource( objIds[i] );
+        odl.updateData( false );
+
+        //acutPrintf(_T("\nO2=%.2f"), odl.O2);
+        if( odl.O2 <= 0 || odl.O2 >= 1 )
+        {
+            odl.O2 = 20; // 20%
+        }
+        if( odl.CH4 <= 0 || odl.CH4 >= 1 )
+        {
+            odl.CH4 = 0; // 0%
+        }
+        if( odl.area <= 0 )
+        {
+            odl.area = 16; // 20%
+        }
+        odl.updateData( true );
+    }
+}
+
+void InitDefData()
+{
+    InitDefTunnelData();
+}
+
+void ConvertQUnit()
+{
+    AcDbObjectIdArray objIds;
+    DrawHelper::FindMineGEs( _T( "LinkedGE" ), objIds );
+
+    int len = objIds.length();
+    for( int i = 0; i < len; i++ )
+    {
+        CString v;
+        DataHelper::GetPropertyData( objIds[i], _T( "风量" ), v );
+
+        double d = 0;
+        ArxUtilHelper::StringToDouble( v, d );
+
+        v.Format( _T( "%.3f" ), d * 60 ); // m3/s ==> m3/min
+        DataHelper::SetPropertyData( objIds[i], _T( "风量" ), v );
+    }
+}

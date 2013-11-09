@@ -1,0 +1,96 @@
+#include "StdAfx.h"
+#include "config.h"
+#include "../ArxHelper/HelperClass.h"
+
+/* 实现在VNGHelper.cpp */
+extern bool DoVNGGen( const CString& dbPath, const CString& pwd, const AcGePoint3d& basePt );
+
+/* 实现在FieldHelper.cpp */
+extern void InitDataField( const CString& dbPath, const CString& pwd );
+
+/* 实现在DataHelper.cpp */
+extern void ReadWriteAllDatas( const CString& dbPath, const CString& pwd );
+
+/* 写入分支的名称 */
+extern void WriteNameToEdge();
+
+void ARX_VNGGen( const CString& dbPath, const CString& pwd, const AcGePoint3d& basePt )
+{
+    if( DoVNGGen( dbPath, pwd, basePt ) )
+    {
+        InitDataField( dbPath, pwd );
+        ReadWriteAllDatas( dbPath, pwd );
+        WriteNameToEdge();
+    }
+}
+
+void GetAllFields( const CString& type, AcStringArray& fields )
+{
+    ArxDictTool* pDcit = ArxDictTool::GetDictTool( VNG_FIELD_DICT );
+    pDcit->getAllEntries( type, fields );
+    delete pDcit;
+}
+
+void GetAllDatas( const AcDbObjectId& objId, AcStringArray& values )
+{
+    AcDbObject* pObj;
+    if( Acad::eOk != acdbOpenObject( pObj, objId, AcDb::kForRead ) ) return;
+
+    resbuf* pAppNode = pObj->xData( VNG_XDATA_GROUP );
+    if( pAppNode != 0 )
+    {
+        resbuf* pTemp = pAppNode;
+        while( pTemp->rbnext != 0 )
+        {
+            pTemp = pTemp->rbnext;
+            values.append( pTemp->resval.rstring );
+        }
+
+        acutRelRb( pAppNode );
+    }
+
+    pObj->close();
+}
+
+bool GetTypeById( const AcDbObjectId& objId, CString& type )
+{
+    AcDbObject* pObj;
+    if( Acad::eOk != acdbOpenObject( pObj, objId, AcDb::kForRead ) ) return false;
+
+    type = pObj->isA()->name();
+
+    pObj->close();
+
+    return true;
+}
+
+void GetDatasByFields( const AcDbObjectId& objId, const AcStringArray& fields, AcStringArray& values )
+{
+    // 获取类型名称
+    CString type;
+    if( !GetTypeById( objId, type ) ) return;
+
+    // 获取所有字段
+    AcStringArray allFields;
+    GetAllFields( type, allFields );
+    if( allFields.isEmpty() ) return;
+
+    // 获取所有数据
+    AcStringArray allValues;
+    GetAllDatas( objId, allValues );
+
+    // 根据字段获取数据(效率可能较差)
+    int n = fields.length();
+    for( int i = 0; i < n; i++ )
+    {
+        int pos = allFields.find( fields[i] );
+        if( pos < 0 )
+        {
+            values.append( _T( "" ) );
+        }
+        else
+        {
+            values.append( allValues[pos] );
+        }
+    }
+}

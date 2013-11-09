@@ -1,0 +1,8 @@
+#include "StdAfx.h"
+#include "GasGeologyGE.h"
+
+ACRX_NO_CONS_DEFINE_MEMBERS(GasGE, MineGE)
+
+GasGE::GasGE(void) : MineGE()
+{
+}

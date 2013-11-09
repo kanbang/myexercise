@@ -1,0 +1,32 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LemonTest", "LemonTest\LemonTest.vcproj", "{0F885275-4865-4BF0-A1C6-76486354AD7B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ExpandDlg", "ExpandDlg\ExpandDlg.vcproj", "{AEDF27FC-5B39-4590-9000-0DA1AA2C5F42}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CListCtrlExDemo", "CListCtrlExDemo\CListCtrlExDemo.vcproj", "{4FB71C5D-A53F-4223-BF16-63AF47C51A2C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0F885275-4865-4BF0-A1C6-76486354AD7B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0F885275-4865-4BF0-A1C6-76486354AD7B}.Debug|Win32.Build.0 = Debug|Win32
+		{0F885275-4865-4BF0-A1C6-76486354AD7B}.Release|Win32.ActiveCfg = Release|Win32
+		{0F885275-4865-4BF0-A1C6-76486354AD7B}.Release|Win32.Build.0 = Release|Win32
+		{AEDF27FC-5B39-4590-9000-0DA1AA2C5F42}.Debug|Win32.ActiveCfg = Debug|Win32
+		{AEDF27FC-5B39-4590-9000-0DA1AA2C5F42}.Debug|Win32.Build.0 = Debug|Win32
+		{AEDF27FC-5B39-4590-9000-0DA1AA2C5F42}.Release|Win32.ActiveCfg = Release|Win32
+		{AEDF27FC-5B39-4590-9000-0DA1AA2C5F42}.Release|Win32.Build.0 = Release|Win32
+		{4FB71C5D-A53F-4223-BF16-63AF47C51A2C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4FB71C5D-A53F-4223-BF16-63AF47C51A2C}.Debug|Win32.Build.0 = Debug|Win32
+		{4FB71C5D-A53F-4223-BF16-63AF47C51A2C}.Release|Win32.ActiveCfg = Release|Win32
+		{4FB71C5D-A53F-4223-BF16-63AF47C51A2C}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

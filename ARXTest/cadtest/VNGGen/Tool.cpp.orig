@@ -1,0 +1,90 @@
+#include <Windows.h>
+#include "Tool.h"
+#include <sstream>
+#include <fstream>
+
+void SplitString(const string& content, const string& token, StringArray& cc)
+{
+	const char* delimeter =  token.c_str();
+	char * pch = strtok((char*)content.c_str(), delimeter);
+	while(pch != NULL)
+	{
+		cc.push_back(pch);
+		pch = strtok(NULL, delimeter);
+	}
+}
+
+string GetAppPathDir()
+{
+	char szMoudlePath[_MAX_PATH];
+	GetModuleFileName(GetModuleHandle("VNGGen.dll"), szMoudlePath, _MAX_PATH);
+
+	char drive[_MAX_DRIVE];
+	char dir[_MAX_DIR];
+	_splitpath(szMoudlePath, drive, dir, NULL, NULL);
+
+	char path[_MAX_PATH];
+	_makepath(path, drive, dir, NULL, NULL);
+
+	return string(path);
+}
+
+string BuildPath(const string& dir, const string& fileName)
+{
+	stringstream ss;
+	//ss<<dir<<"\\"<<fileName;
+	ss<<dir<<fileName;
+	return ss.str();
+}
+
+void RemoveFile(const string& filePath)
+{
+	// 在<stdio.h>中提供
+	remove(filePath.c_str());
+}
+
+// 读取graphviz安装路径
+bool ReadGraphvizInstallPath(string& path)
+{
+	long lRet = 0;
+	string strRegGV = "SOFTWARE\\AT&T Research Labs\\Graphviz"; // graphviz
+	HKEY   hResult;
+	lRet = ::RegOpenKeyEx(HKEY_LOCAL_MACHINE,strRegGV.c_str(),0,KEY_QUERY_VALUE,&hResult);
+	if(lRet == ERROR_SUCCESS)
+	{
+		DWORD      WordType =  REG_SZ;        
+		DWORD      WordData =  100;
+		char     KeyByte[1024];
+		lRet = ::RegQueryValueEx(hResult, "InstallPath",NULL,&WordType,(LPBYTE)KeyByte, &WordData);
+		if(lRet == ERROR_SUCCESS)
+		{
+			path = KeyByte;
+
+			// 合并路径
+			stringstream ss;
+			ss<<path<<"bin\\dot.exe";
+			path = ss.str();
+		}
+		RegCloseKey(hResult); 
+	}
+	return (lRet == ERROR_SUCCESS);
+}
+
+double StringToDouble(const string& value)
+{
+	std::stringstream ss(value);
+	double dd;
+	ss>>dd;
+	ss.clear();
+
+	return dd;
+}
+
+int StringToInt(const string& value)
+{
+	std::stringstream ss(value);
+	int i;
+	ss>>i;
+	ss.clear();
+	return i;
+}

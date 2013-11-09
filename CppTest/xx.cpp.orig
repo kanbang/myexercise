@@ -1,0 +1,19 @@
+#include <iostream>
+using namespace std;
+
+int main()
+{
+	int a=20;
+	double d=30.2;
+
+	int* p1=&a;
+	double* p2=&d;
+
+	cout<<"变量a的地址:"<<&a<<endl;
+	cout<<"指针p1存放的值:"<<p1<<endl;
+
+	cout<<"变量d的地址:"<<&d<<endl;
+	cout<<"指针p2存放的值:"<<p2<<endl;
+
+	return 0;
+}

@@ -1,0 +1,126 @@
+#include "RadialInterpolate.h"
+
+// 在项目属性中添加预处理器定义"NOMINMAX"
+// 避免min和max的错误
+#include <radial.h>
+
+static void make_data( const PointArray& datas,
+                       Vector<double>& x,
+                       Vector<double>& y,
+                       Vector<double>& f )
+{
+    int n = datas.size();
+    x.Resize( n );
+    y.Resize( n );
+    f.Resize( n );
+
+    for( int i = 0; i < n; i++ )
+    {
+        x( i ) = datas[i].x;
+        y( i ) = datas[i].y;
+        f( i ) = datas[i].z;
+    }
+}
+
+static void write_back_data( Vector<double>& fnew, PointArray& datas )
+{
+    int n = datas.size();
+    for( int i = 0; i < n; i++ )
+    {
+        datas[i].z = fnew( i );
+    }
+}
+
+double RadialInterpolatePoint( const PointArray& datas, const DT_Point& pt )
+{
+    MQ<double>          rbf; // RBF as kernel we can use : MQ, IMQ, GAU, TPS, POT
+    Polinomio<double>   pol;
+    double              c;
+    Matrix<double>      A;
+    Vector<double>      x, y, f, b, lambda;
+    Vector<double>      x_new, y_new, f_new;
+    int                 n, m;
+
+    //define the number of nodes
+    n = 10;
+
+    //define the shape parameter for MQ kernel
+    c = 1.0;
+
+    //make the 2d data, see 2d-comun.hpp
+    make_data( datas, x, y, f );
+    n = x.GetSize();
+
+    //configure the associate polynomial
+    // pol.make( data_dimension, degree_pol)
+    pol.make( 2, rbf.get_degree_pol() );
+
+    //get the number of elements in the polynomial base
+    m = pol.get_M();
+
+    //make aditional data for:  Ax=b
+    b.Reallocate( n + m );
+    b = 0.0;
+
+    //fill the expanded vector b = [f 0]
+    for( int i = 0;  i < n;  i++ )
+        b( i ) = f( i );
+
+    //fill the Gramm matrix
+    fill_gram( rbf, pol, c, x, y, A );
+
+    //solve the linear system by LU factorization
+    lambda = gauss( A, b );
+
+    //interpolate the data
+    return interpolate( rbf, pol, c, lambda, x, y, pt.x, pt.y );
+}
+
+void RadialInterpolatePoints( const PointArray& datas, PointArray& pts )
+{
+    MQ<double>          rbf; // RBF as kernel we can use : MQ, IMQ, GAU, TPS, POT
+    Polinomio<double>   pol;
+    double              c;
+    Matrix<double>      A;
+    Vector<double>      x, y, f, b, lambda;
+    Vector<double>      x_new, y_new, f_new;
+    int                 n, m;
+
+    //define the number of nodes
+    n = 10;
+
+    //define the shape parameter for MQ kernel
+    c = 3.0;
+
+    //make the 2d data, see 2d-comun.hpp
+    make_data( datas, x, y, f );
+    n = x.GetSize();
+
+    //configure the associate polynomial
+    // pol.make( data_dimension, degree_pol)
+    pol.make( 2 , rbf.get_degree_pol() );
+
+    //get the number of elements in the polynomial base
+    m = pol.get_M();
+
+    //make aditional data for:  Ax=b
+    b.Reallocate( n + m );
+    b = 0.0;
+
+    //fill the expanded vector b = [f 0]
+    for( int i = 0;  i < n;  i++ )
+        b( i ) = f( i );
+
+    //fill the Gramm matrix
+    fill_gram( rbf, pol, c, x, y, A );
+
+    //solve the linear system by LU factorization
+    lambda = gauss( A, b );
+
+    make_data( pts, x_new, y_new, f_new );
+
+    //interpolate the data
+    f_new = interpolate( rbf, pol, c, lambda, x, y, x_new, y_new );
+
+    write_back_data( f_new, pts );
+}

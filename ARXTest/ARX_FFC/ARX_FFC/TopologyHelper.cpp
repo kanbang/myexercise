@@ -1,0 +1,209 @@
+#include "StdAfx.h"
+
+/* 全局函数(实现在GeoTool.cpp) */
+extern double PolygonArea( const AcGePoint3dArray& polygon );
+extern void BuildPolygonFromLines( const AcGePoint3dArray& spts, const AcGePoint3dArray& epts, AcGePoint3dArray& polygon );
+
+static void GetLineSEPoints( const AcDbVoidPtrArray& lines, AcGePoint3dArray& spts, AcGePoint3dArray& epts )
+{
+    for( int i = 0; i < lines.length(); i++ )
+    {
+        AcDbLine* pLine = ( AcDbLine* )lines[i];
+
+        AcGePoint3d spt, ept;
+        pLine->getStartPoint( spt );
+        pLine->getEndPoint( ept );
+
+        // 记录始末点坐标
+        spts.append( spt );
+        epts.append( ept );
+    }
+}
+
+void AddNewPoints( const AcGePoint3dArray& spts, const AcGePoint3dArray& epts, AcGePoint3dArray& pts )
+{
+    int len = spts.length();
+    for( int i = 0; i < len; i++ )
+    {
+        if( !pts.contains( spts[i] ) ) pts.append( spts[i] );
+        if( !pts.contains( epts[i] ) ) pts.append( epts[i] );
+    }
+}
+
+static int FindEdge( const AcDbIntArray& edges, int s, int t )
+{
+    int pos = -1;
+    for( int i = 0; i < edges.length() / 2; i++ )
+    {
+        int ss = edges[2 * i], tt = edges[2 * i + 1];
+        if( ( ss == s && tt == t ) || ( ss == t && tt == s ) )
+        {
+            pos = i;
+            break;
+        }
+    }
+    return pos;
+}
+
+void AddNewEdges( const AcGePoint3dArray& spts, const AcGePoint3dArray& epts, const AcGePoint3dArray& vertices, AcDbIntArray& edges )
+{
+    for( int i = 0; i < spts.length(); i++ )
+    {
+        int s = vertices.find( spts[i] );
+        int t = vertices.find( epts[i] );
+
+        int pos = FindEdge( edges, s, t );
+        if( pos == -1 )
+        {
+            // 添加分支
+            edges.append( s );
+            edges.append( t );
+        }
+    }
+}
+
+void AddNewFace( const AcGePoint3dArray& spts, const AcGePoint3dArray& epts, const AcGePoint3dArray& vertices, const AcDbIntArray& edges, AcDbIntArray& faces )
+{
+    for( int i = 0; i < spts.length(); i++ )
+    {
+        int s = vertices.find( spts[i] );
+        int t = vertices.find( epts[i] );
+
+        faces.append( FindEdge( edges, s, t ) );
+    }
+}
+
+// 将面域分解成坐标点、边和面
+static void ExplodeRegion( AcDbRegion* pRegion, AcGePoint3dArray& vertices, AcDbIntArray& edges, AcDbIntArray& faces )
+{
+    // 调用explode函数
+    // 隐含条件：entitySet是由AcDbLine构成的数组
+    AcDbVoidPtrArray entitySet;
+    if( Acad::eOk != pRegion->explode( entitySet ) ) return;
+
+    AcGePoint3dArray spts, epts;
+    GetLineSEPoints( entitySet, spts, epts );
+
+    // 删除内存
+    for( int i = 0; i < entitySet.length(); i++ )
+    {
+        delete ( AcDbEntity* )entitySet[i];
+    }
+
+    // 添加新的点坐标
+    AddNewPoints( spts, epts, vertices );
+
+    // 添加新的分支
+    AddNewEdges( spts, epts, vertices, edges );
+
+    // 添加新的面
+    AddNewFace( spts, epts, vertices, edges, faces );
+}
+
+void BuildTopolgyFromRegions( const AcDbVoidPtrArray& regions, AcGePoint3dArray& vertices, AcDbIntArray& edges, AcDbIntArray& faces, AcDbIntArray& faces_info )
+{
+    for( int i = 0; i < regions.length(); i++ )
+    {
+        int face_num = faces.length();
+        AcDbRegion* pRegion = ( AcDbRegion* )regions[i];
+        ExplodeRegion( pRegion, vertices, edges, faces );
+        faces_info.append( faces.length() - face_num );
+    }
+}
+
+void BuildPolygonFromTopology( const AcGePoint3dArray& vertices, const AcDbIntArray& edges,
+                               const AcDbIntArray& faces, const AcDbIntArray& faces_info,
+                               int k, AcGePoint3dArray& polygon )
+{
+    int s = 0;
+    for( int i = 0; i < k; i++ )
+    {
+        s += faces_info[i];
+    }
+    int t = s + faces_info[k];
+
+    AcGePoint3dArray spts, epts;
+    for( int i = s; i < t; i++ )
+    {
+        int j = faces[i];
+        AcGePoint3d spt = vertices[edges[2 * j]];
+        AcGePoint3d ept = vertices[edges[2 * j + 1]];
+        spts.append( spt );
+        epts.append( ept );
+    }
+
+    BuildPolygonFromLines( spts, epts, polygon );
+}
+
+void PrintTopology( AcGePoint3dArray& vertices, AcDbIntArray& edges, AcDbIntArray& faces, AcDbIntArray& faces_info )
+{
+    acutPrintf( _T( "\n点坐标个数: %d\n" ), vertices.length() );
+    for( int i = 0; i < vertices.length(); i++ )
+    {
+        acutPrintf( _T( "v[%d]=(%.3f, %.3f)\t" ), i, vertices[i].x, vertices[i].y );
+        if( i % 2 != 0 ) acutPrintf( _T( "\n" ) );
+    }
+    acutPrintf( _T( "\n分支个数: %d\n" ), edges.length() / 2 );
+    for( int i = 0; i < edges.length() / 2; i++ )
+    {
+        acutPrintf( _T( "e[%d]=(%d, %d)\t" ), i, edges[2 * i], edges[2 * i + 1] );
+        if( i % 2 != 0 ) acutPrintf( _T( "\n" ) );
+    }
+    acutPrintf( _T( "\n面个数: %d\n" ), faces_info.length() );
+    for( int i = 0; i < faces_info.length(); i++ )
+    {
+        acutPrintf( _T( "第%d个面: (" ), i );
+        int s = 0;
+        for( int j = 0; j < i; j++ )
+        {
+            s += faces_info[j];
+        }
+        int t = s + faces_info[i];
+
+        for( int j = s; j < t; j++ )
+        {
+            acutPrintf( _T( "%d " ), faces[j] );
+        }
+        acutPrintf( _T( ")\n" ) );
+    }
+}
+
+// 根据坐标查找分支编号
+int FindEdgeByTwoPoint( const AcGePoint3dArray& vertices, const AcDbIntArray& edges,
+                        const AcGePoint3d& spt, const AcGePoint3d& ept )
+{
+    int pos = -1;
+    int n = edges.length() / 2;
+    for( int i = 0; i < n; i++ )
+    {
+        int s = edges[2 * i], t = edges[2 * i + 1];
+        AcGePoint3d p1 = vertices[s], p2 = vertices[t];
+        if( ( p1 == spt && p2 == ept ) || ( p1 == ept && p2 == spt ) )
+        {
+            pos = i;
+            break;
+        }
+    }
+    return pos;
+}
+
+void LinesToEdges( AcGePoint3dArray& spts, AcGePoint3dArray& epts,
+                   const AcGePoint3dArray& vertices, const AcDbIntArray& edges,
+                   AcDbIntArray& bounds )
+{
+    for( int i = 0; i < spts.length(); i++ )
+    {
+        bounds.append( FindEdgeByTwoPoint( vertices, edges, spts[i], epts[i] ) );
+    }
+}
+
+double FacePolygonArea( const AcGePoint3dArray& vertices, const AcDbIntArray& edges,
+                        const AcDbIntArray& faces, const AcDbIntArray& faces_info,
+                        int k )
+{
+    AcGePoint3dArray polygon;
+    BuildPolygonFromTopology( vertices, edges, faces, faces_info, k, polygon );
+
+    // 计算面积
+    return PolygonArea( polygon );
+}

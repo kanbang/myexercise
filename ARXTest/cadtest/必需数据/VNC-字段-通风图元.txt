@@ -1,0 +1,82 @@
+Tunnel	名称
+Tunnel	风量
+Tunnel	固定风量
+Tunnel	风阻
+Tunnel	调节风阻
+
+ArcTunnel		名称
+ArcTunnel		风量
+ArcTunnel		固定风量
+ArcTunnel		风阻
+ArcTunnel		调节风阻
+
+WorkSurface	名称
+WorkSurface	风量
+WorkSurface	固定风量
+WorkSurface	风阻
+WorkSurface	调节风阻
+
+TTunnel	名称
+TTunnel	风量
+TTunnel	固定风量
+TTunnel	风阻
+TTunnel	调节风阻
+
+MainFan	名称
+MainFan	风量-风压特性曲线0次项
+MainFan	风量-风压特性曲线1次项
+MainFan	风量-风压特性曲线2次项
+MainFan	风量-风压特性曲线3次项
+MainFan	风量-风压特性曲线4次项
+MainFan	风量-风压特性曲线5次项
+
+LocalFan	名称
+LocalFan	风量-风压特性曲线0次项
+LocalFan	风量-风压特性曲线1次项
+LocalFan	风量-风压特性曲线2次项
+LocalFan	风量-风压特性曲线3次项
+LocalFan	风量-风压特性曲线4次项
+LocalFan	风量-风压特性曲线5次项
+
+PowderStorage	名称
+PowderStorage	风阻
+PowderStorage	调节风阻
+PowderStorage	风量
+PowderStorage	固定风量
+
+ChargeRoom	名称
+ChargeRoom	风阻
+ChargeRoom	调节风阻
+ChargeRoom	风量
+ChargeRoom	固定风量
+
+MachineRoom	名称
+MachineRoom	风阻
+MachineRoom	调节风阻
+MachineRoom	风量
+MachineRoom	固定风量
+
+PermanentGate	名称
+PermanentGate	等效风阻
+
+TemporaryGate	名称
+TemporaryGate	等效风阻
+
+DoubleGate	名称
+DoubleGate	等效风阻
+
+BalanceGate	名称
+BalanceGate	等效风阻
+
+WallCasement	名称
+WallCasement	等效风阻
+
+PermanentCasement	名称
+PermanentCasement	等效风阻
+
+TemporaryCasement		名称
+TemporaryCasement		等效风阻
+
+Chimney	风筒长度
+Chimney	风筒直径
+Chimney	风阻

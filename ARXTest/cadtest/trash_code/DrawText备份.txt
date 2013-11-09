@@ -1,0 +1,35 @@
+void DrawText(const AcGePoint3d& pt, const CString& text, double height, AcDb::TextHorzMode hm=AcDb::kTextLeft, AcDb::TextVertMode vm=AcDb::kTextBase)
+{
+	AcDbText* pText = new AcDbText();
+	pText->setTextString(text);
+	pText->setHeight(height);
+	pText->setHorizontalMode(hm);
+	pText->setVerticalMode(vm);
+	/*
+	 * 根据AcDbText::setHorizontalMode()的说明
+	 * 如果设置为AcDb::kTextLeft，应使用setPosition()方法设置插入点
+	 * 如果设置为非AcDb::kTextLeft，应使用setAlignmentPoint()方法设置插入点
+	 * AcDbText::setVerticalMode()方法同上!!!
+	 */
+	if(hm != AcDb::kTextLeft || vm == AcDb::kTextBase)
+	{
+		pText->setAlignmentPoint(pt);
+	}
+	else
+	{
+		pText->setPosition(pt);
+	}
+	// 废弃代码
+	/*
+	AcGeVector3d v1(AcGeVector3d::kXAxis), v2(AcGeVector3d::kXAxis);
+	v1.rotateBy(PI, AcGeVector3d::kZAxis);
+	v2.rotateBy(PI*1.5, AcGeVector3d::kZAxis);
+	pText->setPosition(pt + (v1*width + v2*height)/2);
+
+	pText->setAlignmentPoint(pt + (v2*height)/2);
+	pText->setAlignmentPoint(pt);
+	*/
+
+	PostGEToModelSpace(pText);
+	pText->close();
+}

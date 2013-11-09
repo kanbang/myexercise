@@ -1,0 +1,32 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RegexTest", "RegexTest\RegexTest.vcproj", "{7269192E-087A-4C42-AC57-6BC6D1DAA8CF}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ThreadTest", "ThreadTest\ThreadTest.vcproj", "{3BA374E9-6C66-43B9-989A-5244D2EF29CB}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChronoTest", "ChronoTest\ChronoTest.vcproj", "{4E700D9A-83F9-4C14-ACFD-28D9A9CA2A78}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7269192E-087A-4C42-AC57-6BC6D1DAA8CF}.Debug|Win32.ActiveCfg = Debug|Win32
+		{7269192E-087A-4C42-AC57-6BC6D1DAA8CF}.Debug|Win32.Build.0 = Debug|Win32
+		{7269192E-087A-4C42-AC57-6BC6D1DAA8CF}.Release|Win32.ActiveCfg = Release|Win32
+		{7269192E-087A-4C42-AC57-6BC6D1DAA8CF}.Release|Win32.Build.0 = Release|Win32
+		{3BA374E9-6C66-43B9-989A-5244D2EF29CB}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3BA374E9-6C66-43B9-989A-5244D2EF29CB}.Debug|Win32.Build.0 = Debug|Win32
+		{3BA374E9-6C66-43B9-989A-5244D2EF29CB}.Release|Win32.ActiveCfg = Release|Win32
+		{3BA374E9-6C66-43B9-989A-5244D2EF29CB}.Release|Win32.Build.0 = Release|Win32
+		{4E700D9A-83F9-4C14-ACFD-28D9A9CA2A78}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4E700D9A-83F9-4C14-ACFD-28D9A9CA2A78}.Debug|Win32.Build.0 = Debug|Win32
+		{4E700D9A-83F9-4C14-ACFD-28D9A9CA2A78}.Release|Win32.ActiveCfg = Release|Win32
+		{4E700D9A-83F9-4C14-ACFD-28D9A9CA2A78}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
