@@ -1,0 +1,75 @@
+=====================================
+ SWIG Tutorial (with NumPy emphasis)
+=====================================
+
+:Author:      Bill Spotz
+:Institution: Sandia National Laboratories
+:Date:        Wednesday, August 15, 2007
+
+This directory provides code, SWIG interface files, and a simple build
+system whose purpose is to provide a hands-on tutorial for learning
+how to use SWIG, the Simple Wrapper and Interface Generator.  Special
+emphasis is placed on a mathematical example and interfacing with the
+numpy module.
+
+Prerequisites
+-------------
+To work with the tutorial, you will need the following installed:
+
+  * A C++ compiler (with STL)
+  * Python
+  * NumPy (for the 5th example)
+  * SWIG
+
+The Example Code
+----------------
+The purpose of the tutorial is to create a working python module that
+wraps the following code:
+
+  * Graph.hpp, a C++ header file that defines the Graph class
+  * Graph.cpp, a C++ implementation source file
+
+The class Graph refers to a mathematical graph, which can be used to
+represent the structure of a sparse matrix or a network.  You should
+familiarize yourself with the class prototype in Graph.hpp to better
+understand what swig is doing as it wraps it.  The implementation in
+Graph.cpp is of less interest.  It is necessary in order to get a
+working python module, but swig is designed so that an outside party
+could generate an interface to code even if they only have access to
+header files and libraries.
+
+The SWIG interface files
+------------------------
+There are a number of SWIG interface files in this directory, that
+serve the following purposes:
+
+  * Graph1.i   a bare-bones interface for wrapping Graph
+  * Graph2.i   adds some documentation to the resulting module
+  * Graph3.i   converts C++-style output to python-style output
+  * Graph4.i   converts integer error codes to python exceptions
+  * Graph5.i   uses numpy to provide arguments that are C-arrays
+  * Graph6.i   adds a more complicated output argument example
+  * numpy.i    provides the type conversions needed by Graph5.i and
+               Graph6.i 
+
+Graph1.i through Graph6.i provide a natural progression of creating an
+increasingly more robust and useful module.  The build system expects
+to act on a SWIG interface file named Graph.i, so the intent is that
+you copy one of the numbered interface files to Graph.i, starting with
+1, and then type make.  You work your way through the tutorial by
+copying successively higher-numbered files until you have run make on
+all of them.
+
+The build system
+----------------
+The make utility controls the top level build process, but it hands
+off the compilation duties to python's distutils package in order to
+compile the extension module in a portable way.  The build process
+works as follows:
+
+  * make ensures that the wrapper code Graph_wrap.cpp and and the
+    proxy file Graph.py are up-to-date by calling swig
+  * make then calls the setup.py script to build the extension module
+  * setup.py compiles Graph.cpp and Graph_wrap.cpp to build _Graph.so
+  * the results are placed in a directory distutils calls "build", in a
+    subdirectory with the prefix "lib"
