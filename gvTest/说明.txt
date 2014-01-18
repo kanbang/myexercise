@@ -1,0 +1,16 @@
+1、安装graphviz，修改"运行.bat"里的graphviz的路径
+set DOT_EXE = D:\Program\Graphviz2.26.3\bin\dot.exe
+
+2、把拓扑文件放到data文件夹去，
+就是一个简单的txt，每一行有3列（分支编号、始节点编号、末节点编号），
+不要求编号一定是连续的
+
+3、前2项准备完成之后，双击“运行.bat”
+
+4、“运行.bat”
+      a）内部调用gvFileGen.exe(在当前文件夹下）读取data里的拓扑文件生成graphviz识别的输入格式文件(xxx.gv)
+          gv格式的内容参考graphviz的帮助文档
+          gvFileGen.cpp是我自己写的c++代码，编译后生成gvFileGen.exe，你可以参考一下（其实就是写文件操作，按照gv文件的格式写文件）
+
+      b）生成xxx.gv之后，调用dot -Tpng xx.gv  -o xx.png
+          dot的用法参考graphviz的帮助文档
